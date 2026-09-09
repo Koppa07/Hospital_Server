@@ -85,7 +85,7 @@ def complete_reception(request):
         with transaction.atomic():
             with connection.cursor() as cursor:
                 cursor.execute(
-                    "SELECT complete_reception(%s, %s, %s, %s);",
+                    "SELECT COMPLETE_RECEPTION(%s, %s, %s, %s);",
                     [
                         data["log_id"],
                         data["disease_id"],
@@ -207,7 +207,7 @@ def create_schedule(request):
 
 
 @api_view(["GET"])
-def get_available_slots(request, doctor_id):
+def get_available_slots(request, pk):
     target_date_str = request.query_params.get("date")
 
     if not target_date_str:
@@ -219,7 +219,7 @@ def get_available_slots(request, doctor_id):
     now = timezone.now()
 
     available_slots = TimeSlot.objects.filter(
-        doctor_id=doctor_id,
+        doctor_id=pk,
         start_datetime__date=target_date_str,
         start_datetime__gt=now,
         is_booked=False,

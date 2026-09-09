@@ -14,8 +14,9 @@ def specializations(request):
         serializer = SpecializationSerializer(specialization, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     if request.method == "POST":
-        serializer = SpecializationSerializer(data=request.data)
+        serializer = SpecializationUpdateSerializer(data=request.data)
         if serializer.is_valid():
+            serializer.save()
             return Response(
                 {"Добавлена специализация": serializer.data},
                 status=status.HTTP_201_CREATED,
@@ -32,7 +33,7 @@ def specialization(request, pk):
 
     if request.method in ("PUT", "PATCH"):
         serializer = SpecializationUpdateSerializer(
-            spec, data=request.data, partitial=True
+            spec, data=request.data, partial=(request.method == "PATCH")
         )
         if serializer.is_valid():
             serializer.save()

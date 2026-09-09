@@ -46,7 +46,9 @@ def doctor(request, pk):
         return Response(status=status.HTTP_404_NOT_FOUND)
 
     if request.method in ("PUT", "PATCH"):
-        serializer = DoctorUpdateSerializer(doctor, data=request.data)
+        serializer = DoctorUpdateSerializer(
+            doctor, data=request.data, partial=(request.method == "PATCH")
+        )
         if serializer.is_valid():
             serializer.save()
             return Response(

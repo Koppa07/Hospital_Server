@@ -14,10 +14,11 @@ def departments(request):
         serializer = DepartmentSerializer(department, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     if request.method == "POST":
-        serializer = DepartmentSerializer(data=request.data)
+        serializer = DepartmentUpdateSerializer(data=request.data)
         if serializer.is_valid():
+            serializer.save()
             return Response(
-                {"Добавлен отдел": serializer.data},
+                {"Добавлено отделение": serializer.data},
                 status=status.HTTP_201_CREATED,
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -31,15 +32,19 @@ def department(request, pk):
         return Response(status=status.HTTP_404_NOT_FOUND)
 
     if request.method in ("PUT", "PATCH"):
-        serializer = DepartmentUpdateSerializer(dep, data=request.data, partitial=True)
+        serializer = DepartmentUpdateSerializer(
+            dep, data=request.data, partial=(request.method == "PATCH")
+        )
         if serializer.is_valid():
             serializer.save()
             return Response(
-                {"Обновлена информация об отделе": serializer.data},
+                {"Обновлена информация об отделении": serializer.data},
                 status=status.HTTP_200_OK,
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     elif request.method == "DELETE":
         dep.delete()
-        return Response("Отдел удален", status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            "Информация об отделении удалена", status=status.HTTP_204_NO_CONTENT
+        )

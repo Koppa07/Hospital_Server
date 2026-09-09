@@ -15,8 +15,9 @@ def drugs(request):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     elif request.method == "POST":
-        serializer = DrugSerializer(data=request.data)
+        serializer = DrugUpdateSerializer(data=request.data)
         if serializer.is_valid():
+            serializer.save()
             return Response(
                 {"Добавлен медикамент": serializer.data},
                 status=status.HTTP_201_CREATED,
@@ -32,7 +33,9 @@ def drug(request, pk):
         return Response(status=status.HTTP_404_NOT_FOUND)
 
     if request.method in ("PUT", "PATCH"):
-        serializer = DrugUpdateSerializer(drug, data=request.data, partitial=True)
+        serializer = DrugUpdateSerializer(
+            drug, data=request.data, partial=(request.method == "PATCH")
+        )
         if serializer.is_valid():
             serializer.save()
             return Response(
@@ -44,5 +47,5 @@ def drug(request, pk):
     elif request.method == "DELETE":
         drug.delete()
         return Response(
-            "Сведения о медикаменте удалены", status=status.HTTP_204_NO_CONTENT
+            "Информация о медикаменте удалена", status=status.HTTP_204_NO_CONTENT
         )

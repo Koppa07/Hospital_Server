@@ -153,10 +153,18 @@ class ReceptionLog(models.Model):
         Patient, on_delete=models.PROTECT, db_column="patient_id"
     )
     disease_id = models.ForeignKey(
-        Disease, on_delete=models.PROTECT, db_column="disease_id"
+        Disease,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column="disease_id",
     )
     pres_id = models.ForeignKey(
-        Prescription, on_delete=models.PROTECT, db_column="pres_id"
+        Prescription,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column="pres_id",
     )
 
     appointment_date = models.DateTimeField(db_column="appointment_date")

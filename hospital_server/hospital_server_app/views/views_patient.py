@@ -48,9 +48,7 @@ def register_patient(request):
 
 
 class PatientListView(generics.ListAPIView):
-    queryset = Patient.objects.select_related(
-        "patient_name", "insurance", "card_number"
-    ).all()
+    queryset = Patient.objects.select_related("user").all()
     serializer_class = PatientSerializer
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
@@ -70,7 +68,9 @@ def patient(request, pk):
         return Response(status=status.HTTP_404_NOT_FOUND)
 
     if request.method in ("PUT", "PATCH"):
-        serializer = PatientUpdateSerializer(patient, data=request.data, partitial=True)
+        serializer = PatientUpdateSerializer(
+            patient, data=request.data, partial=(request.method == "PATCH")
+        )
         if serializer.is_valid():
             serializer.save()
             return Response(
@@ -87,10 +87,10 @@ def patient(request, pk):
 
 
 @api_view(["GET"])
-def medical_history(request, patient_id):
+def medical_history(request, pk):
     if request.user.role == "PATIENT":
         patient_profile = getattr(request.user, "patient_profile", None)
-        if not patient_profile or patient_profile.card_number != patient_id:
+        if not patient_profile or patient_profile.card_number != pk:
             return Response(
                 {
                     "detail": "У вас нет прав для просмотра истории болезни этого пациента."
@@ -99,7 +99,7 @@ def medical_history(request, patient_id):
             )
 
     completed_receptions = (
-        ReceptionLog.objects.filter(patient_id=patient_id, status="COMPLETED")
+        ReceptionLog.objects.filter(patient_id=pk, status="COMPLETED")
         .select_related("doctor_id__spec", "disease_id", "pres_id")
         .prefetch_related("pres_id__prescriptiondrug_set__drug_id")
         .order_by("-appointment_date")

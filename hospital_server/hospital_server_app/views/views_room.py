@@ -14,8 +14,9 @@ def rooms(request):
         serializer = RoomSerializer(room, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     if request.method == "POST":
-        serializer = RoomSerializer(data=request.data)
+        serializer = RoomUpdateSerializer(data=request.data)
         if serializer.is_valid():
+            serializer.save()
             return Response(
                 {"Добавлен кабинет": serializer.data},
                 status=status.HTTP_201_CREATED,
@@ -31,7 +32,9 @@ def room(request, pk):
         return Response(status=status.HTTP_404_NOT_FOUND)
 
     if request.method in ("PUT", "PATCH"):
-        serializer = RoomUpdateSerializer(room, data=request.data, partitial=True)
+        serializer = RoomUpdateSerializer(
+            room, data=request.data, partial=(request.method == "PATCH")
+        )
         if serializer.is_valid():
             serializer.save()
             return Response(
@@ -42,4 +45,6 @@ def room(request, pk):
 
     elif request.method == "DELETE":
         room.delete()
-        return Response("Кабинет удален", status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            "Информация о кабинете удалена", status=status.HTTP_204_NO_CONTENT
+        )

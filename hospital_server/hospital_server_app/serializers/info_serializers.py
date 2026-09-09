@@ -26,11 +26,17 @@ class UserSerializer(serializers.ModelSerializer):
 class DoctorProfileSerializer(serializers.ModelSerializer):
     spec_title = serializers.CharField(source="spec.spec_title", read_only=True)
     room_number = serializers.IntegerField(source="room.room_number", read_only=True)
-    department_title = serializers.CharField(source="dep.dep_title", read_only=True)
+    dep_title = serializers.CharField(source="dep.dep_title", read_only=True)
 
     class Meta:
         model = Doctor
-        fields = ("doctor_id", "doctor_name", "spec_title", "dep_title", "room_number")
+        fields = (
+            "doctor_id",
+            "doctor_name",
+            "spec_title",
+            "dep_title",
+            "room_number",
+        )
 
 
 class UserWithDoctorSerializer(serializers.ModelSerializer):

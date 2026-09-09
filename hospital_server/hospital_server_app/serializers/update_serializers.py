@@ -6,10 +6,10 @@ from ..models import *
 User = get_user_model()
 
 
-class SpecializationUpdateSerializer(serializers.Serializer):
+class SpecializationUpdateSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Department
-        fields = "spec_title"
+        model = Specialization
+        fields = ["spec_title"]
 
 
 class DepartmentUpdateSerializer(serializers.ModelSerializer):
