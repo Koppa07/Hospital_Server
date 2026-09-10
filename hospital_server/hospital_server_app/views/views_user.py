@@ -5,6 +5,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from ..serializers.info_serializers import UserSerializer
 
@@ -69,23 +70,41 @@ def signup(request):
     serializer = UserSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.save()
-        token = Token.objects.create(user=user)
+        refresh = RefreshToken.for_user(user)
+
         return Response(
-            {"token": token.key, "user": serializer.data},
+            {
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+                "user": serializer.data,
+            },
             status=status.HTTP_201_CREATED,
         )
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def logout(request):
-    if hasattr(request.user, "auth_token"):
-        request.user.auth_token.delete()
+    try:
+        refresh_token = request.data.get("refresh")
+        if not refresh_token:
+            return Response(
+                {"detail": "Refresh токен не предоставлен."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        token = RefreshToken(refresh_token)
+        token.blacklist()
+
         return Response(
             {"detail": "Успешный выход из системы."}, status=status.HTTP_200_OK
         )
-
-    return Response({"detail": "Токен не найден."}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response(
+            {"detail": "Недействительный токен или ошибка при выходе."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 
 @api_view(["GET"])

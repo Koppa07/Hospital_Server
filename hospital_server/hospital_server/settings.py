@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+from datetime import timedelta
 from pathlib import Path
 import sys
 
@@ -26,7 +27,7 @@ SECRET_KEY = "django-insecure-sjq79ccfj7iro#o#sz0c*u!ni=d_kt9^=&md!o5e7l1zhta$=7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 if "test" in sys.argv:
     PASSWORD_HASHERS = [
@@ -43,22 +44,29 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "hospital_server_app",
     "rest_framework",
-    "rest_framework.authtoken",
+    "rest_framework_simplejwt",
+    "corsheaders",
     "drf_yasg",
+    "rest_framework_simplejwt.token_blacklist",
 ]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
 }
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+}
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -139,11 +147,5 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 
-# Email
-# https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
-
-MAILERS = {
-    "default": {
-        "BACKEND": "django.core.mail.backends.console.EmailBackend",
-    },
-}
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_CREDENTIALS = True

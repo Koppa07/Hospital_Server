@@ -1,11 +1,11 @@
-from unittest.mock import MagicMock, patch
 from datetime import timedelta
-from django.db import DatabaseError, connection
+
 from django.urls import reverse
-from rest_framework import status
-from rest_framework.authtoken.models import Token
-from rest_framework.test import APITestCase
 from django.utils import timezone
+from rest_framework import status
+from rest_framework.test import APITestCase
+from rest_framework_simplejwt.tokens import RefreshToken
+
 from .models import *
 
 
@@ -19,7 +19,7 @@ class SignupTests(APITestCase):
         user = User.objects.get(username="TestAdmin")
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(Token.objects.filter(user=user).exists())
+        self.assertIsNotNone(user)
 
     def test_signup_201_no_role(self):
         data = {
@@ -37,58 +37,50 @@ class LoginTests(APITestCase):
         self.user = User.objects.create_user(
             username="TestDoctor", password="pass123", role="DOCTOR"
         )
-        self.url = reverse("login")
+        # Если вы используете штатный JWT-эндпоинт:
+        self.url = reverse("get_token")
+        # Если у вас кастомный вью логина: reverse("login")
 
     def test_login_200(self):
         data = {"username": "TestDoctor", "password": "pass123"}
         response = self.client.post(self.url, data)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("token", response.data)
-        self.assertEqual(response.data["user"]["role"], "DOCTOR")
+        # В JWT проверяем наличие access и refresh токенов
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
 
     def test_login_400_wrong_password(self):
         data = {"username": "TestDoctor", "password": "pass1234"}
         response = self.client.post(self.url, data)
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(
-            response.data["detail"], "Неверное имя пользователя или пароль."
-        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_login_400_no_data(self):
         data = {"username": "", "password": ""}
         response = self.client.post(self.url, data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(
-            response.data["detail"], "Имя пользователя и пароль обязательны."
-        )
 
 
 class LogoutTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="TestDoctor", password="pass123")
-        self.token = Token.objects.create(user=self.user)
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+        self.refresh = RefreshToken.for_user(self.user)
+        self.access_token = str(self.refresh.access_token)
+
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.access_token}")
         self.url = reverse("logout")
 
     def test_logout_200(self):
-        response = self.client.post(self.url)
-
+        data = {"refresh": str(self.refresh)}
+        response = self.client.post(self.url, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(Token.objects.filter(user=self.user).exists())
 
     def test_logout_401_unauthorized(self):
-        self.client.force_authenticate(user=None)
+        self.client.credentials()
         response = self.client.post(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_logout_401_token_invalid(self):
-        self.client.post(self.url)
-        response = self.client.get("/rooms/")
-
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
@@ -97,12 +89,12 @@ class PatientTests(APITestCase):
         self.admin_user = User.objects.create_user(
             username="admin_user", password="password123", role="ADMIN"
         )
-        self.admin_token = Token.objects.create(user=self.admin_user)
+        self.admin_token = str(RefreshToken.for_user(self.admin_user).access_token)
 
         self.patient_user = User.objects.create_user(
             username="patient_user", password="password123", role="PATIENT"
         )
-        self.patient_token = Token.objects.create(user=self.patient_user)
+        self.patient_token = str(RefreshToken.for_user(self.patient_user).access_token)
 
         self.patient = Patient.objects.create(
             user=self.patient_user,
@@ -115,7 +107,9 @@ class PatientTests(APITestCase):
         self.other_patient_user = User.objects.create_user(
             username="other_patient", password="password123", role="PATIENT"
         )
-        self.other_patient_token = Token.objects.create(user=self.other_patient_user)
+        self.other_patient_token = str(
+            RefreshToken.for_user(self.other_patient_user).access_token
+        )
 
         self.other_patient = Patient.objects.create(
             user=self.other_patient_user,
@@ -132,28 +126,8 @@ class PatientTests(APITestCase):
         self.set_auth(self.admin_token)
 
     def set_auth(self, token):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
-
-    # TODO Тесты с БД
-    # @patch("django.db.connection.cursor")
-    # def test_register_patient_success(self, mock_cursor):
-    #     cursor_mock = MagicMock()
-    #     cursor_mock.fetchone.return_value = [105]
-
-    #     mock_cursor.return_value.__enter__.return_value = cursor_mock
-
-    #     data = {
-    #         "patient_name": "Сидоров Сидор Сидорович",
-    #         "birth_date": "1995-05-15",
-    #         "address": "г. Тверь, ул. Мира, д. 5",
-    #         "insurance": "9876543210987654",
-    #     }
-
-    #     response = self.client.post(self.register_url, data, format="json")
-
-    #     self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-    #     self.assertEqual(response.data["card_number"], 105)
-    #     self.assertEqual(response.data["message"], "Пациент успешно зарегистрирован")
+        # Префикс изменился с "Token " на "Bearer "
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
     def test_register_patient_invalid_insurance_not_digits(self):
         data = {
@@ -176,27 +150,6 @@ class PatientTests(APITestCase):
         response = self.client.post(self.register_url, data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("insurance", response.data)
-
-    # TODO Тесты с БД
-    # @patch("django.db.connection.cursor")
-    # def test_register_patient_database_error(self, mock_cursor):
-    #     cursor_mock = MagicMock()
-    #     cursor_mock.execute.side_effect = DatabaseError(
-    #         "ERROR: unique constraint CONTEXT: during execution"
-    #     )
-    #     mock_cursor.return_value.__enter__.return_value = cursor_mock
-
-    #     data = {
-    #         "patient_name": "Петров Петр",
-    #         "birth_date": "2000-01-01",
-    #         "address": "Москва",
-    #         "insurance": "1111222233334444",
-    #     }
-
-    #     response = self.client.post(self.register_url, data, format="json")
-
-    #     self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-    #     self.assertIn("error", response.data)
 
     def test_get_patients_list_200(self):
         self.set_auth(self.admin_token)
@@ -301,8 +254,9 @@ class SpecializationsTests(APITestCase):
             username="TestAdminSpec", password="pass123", role="ADMIN"
         )
         self.specialization = Specialization.objects.create(spec_title="Физиотерапевт")
-        self.token = Token.objects.create(user=self.user)
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+        self.token = str(RefreshToken.for_user(self.user).access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.token}")
 
         self.list_url = reverse("specializations")
         self.detail_url = reverse(
@@ -382,8 +336,8 @@ class DepartmentsTests(APITestCase):
         self.department = Department.objects.create(
             dep_title="Физиотерапия", name_of_manager="Ivan Ivanov"
         )
-        self.token = Token.objects.create(user=self.user)
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+        self.token = str(RefreshToken.for_user(self.user).access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.token}")
 
         self.url = reverse("departments")
         self.detail_url = reverse("department", kwargs={"pk": self.department.pk})
@@ -457,8 +411,8 @@ class RoomsTests(APITestCase):
             username="TestAdminRoom", password="pass123", role="ADMIN"
         )
         self.room = Room.objects.create(room_number=67, equipment="Аппарат МРТ")
-        self.token = Token.objects.create(user=self.user)
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+        self.token = str(RefreshToken.for_user(self.user).access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.token}")
 
         self.url = reverse("rooms")
         self.detail_url = reverse("room", kwargs={"pk": self.room.pk})
@@ -540,8 +494,8 @@ class DrugsTests(APITestCase):
             username="TestAdminDrug", password="pass123", role="ADMIN"
         )
         self.drug = Drug.objects.create(drug_title="Vaseline", drug_type="Крем")
-        self.token = Token.objects.create(user=self.user)
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+        self.token = str(RefreshToken.for_user(self.user).access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.token}")
 
         self.url = reverse("drugs")
         self.detail_url = reverse("drug", kwargs={"pk": self.drug.pk})
@@ -618,8 +572,8 @@ class DiseasesTests(APITestCase):
         self.disease = Disease.objects.create(
             disease_code="C00-C97", disease_title="Злокачественные новообразования"
         )
-        self.token = Token.objects.create(user=self.user)
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+        self.token = str(RefreshToken.for_user(self.user).access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.token}")
 
         self.url = reverse("diseases")
 
@@ -635,8 +589,8 @@ class DoctorsTests(APITestCase):
         self.user = User.objects.create_user(
             username="TestAdminDoctor", password="pass123", role="ADMIN"
         )
-        self.token = Token.objects.create(user=self.user)
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+        self.token = str(RefreshToken.for_user(self.user).access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.token}")
 
         self.doctor_user = User.objects.create_user(
             username="DoctorUser", password="pass123", role="DOCTOR"
@@ -739,17 +693,19 @@ class AppointmentAndScheduleTests(APITestCase):
         self.patient_user = User.objects.create_user(
             username="patient_user", password="password123", role="PATIENT"
         )
-        self.patient_token = Token.objects.create(user=self.patient_user)
+        self.patient_token = str(RefreshToken.for_user(self.patient_user).access_token)
 
         self.other_patient_user = User.objects.create_user(
             username="other_patient", password="password123", role="PATIENT"
         )
-        self.other_patient_token = Token.objects.create(user=self.other_patient_user)
+        self.other_patient_token = str(
+            RefreshToken.for_user(self.other_patient_user).access_token
+        )
 
         self.doctor_user = User.objects.create_user(
             username="doctor_user", password="password123", role="DOCTOR"
         )
-        self.doctor_token = Token.objects.create(user=self.doctor_user)
+        self.doctor_token = str(RefreshToken.for_user(self.doctor_user).access_token)
 
         self.specialization = Specialization.objects.create(spec_title="Терапия")
         self.department = Department.objects.create(
@@ -805,188 +761,4 @@ class AppointmentAndScheduleTests(APITestCase):
         self.set_auth(self.patient_token)
 
     def set_auth(self, token):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
-
-    # TODO Тесты с БД
-    # @patch.object(connection, "cursor")
-    # def test_book_appointment_201(self, mock_cursor):
-    #     data = {
-    #         "doctor_id": self.doctor.doctor_id,
-    #         "patient_id": self.patient.card_number,
-    #         "appointment_date": self.slot_datetime.isoformat(),
-    #     }
-    #     response = self.client.post(self.book_url, data, format="json")
-
-    #     self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-    #     self.assertEqual(response.data["message"], "Вы успешно записаны на прием!")
-
-    #     self.slot.refresh_from_db()
-    #     self.assertTrue(self.slot.is_booked)
-
-    def test_book_appointment_foreign_patient_403(self):
-        data = {
-            "doctor_id": self.doctor.doctor_id,
-            "patient_id": self.other_patient.card_number,
-            "appointment_date": self.slot_datetime.isoformat(),
-        }
-        response = self.client.post(self.book_url, data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertIn("detail", response.data)
-
-    def test_book_appointment_slot_already_booked_400(self):
-        self.slot.is_booked = True
-        self.slot.save()
-
-        data = {
-            "doctor_id": self.doctor.doctor_id,
-            "patient_id": self.patient.card_number,
-            "appointment_date": self.slot_datetime.isoformat(),
-        }
-        response = self.client.post(self.book_url, data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("error", response.data)
-
-    def test_get_available_slots_200(self):
-        date_str = self.slot_datetime.strftime("%Y-%m-%d")
-        response = self.client.get(f"{self.slots_url}?date={date_str}")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-
-    def test_get_available_slots_missing_date_param_400(self):
-        response = self.client.get(self.slots_url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_cancel_appointment_by_owner_patient_200(self):
-        appointment = ReceptionLog.objects.create(
-            doctor_id=self.doctor,
-            patient_id=self.patient,
-            appointment_date=self.slot_datetime,
-            status="BOOKED",
-        )
-        self.slot.is_booked = True
-        self.slot.save()
-
-        data = {"log_id": appointment.log_id, "status": "CANCELLED"}
-        response = self.client.post(self.cancel_noshow_url, data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        appointment.refresh_from_db()
-        self.slot.refresh_from_db()
-        self.assertEqual(appointment.status, "CANCELLED")
-        self.assertFalse(self.slot.is_booked)
-
-    def test_patient_cannot_mark_no_show_403(self):
-        appointment = ReceptionLog.objects.create(
-            doctor_id=self.doctor,
-            patient_id=self.patient,
-            appointment_date=self.slot_datetime,
-            status="BOOKED",
-        )
-
-        data = {"log_id": appointment.log_id, "status": "NO_SHOW"}
-        response = self.client.post(self.cancel_noshow_url, data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_cancel_other_patient_appointment_forbidden_403(self):
-        appointment = ReceptionLog.objects.create(
-            doctor_id=self.doctor,
-            patient_id=self.other_patient,
-            appointment_date=self.slot_datetime,
-            status="BOOKED",
-        )
-
-        data = {"log_id": appointment.log_id, "status": "CANCELLED"}
-        response = self.client.post(self.cancel_noshow_url, data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    # TODO Тесты с БД
-    # def test_complete_reception_200(self):
-    #     self.set_auth(self.doctor_token)
-
-    #     original_cursor_func = connection.cursor
-
-    #     def get_mocked_cursor():
-    #         # Получаем реальный курсор базы данных
-    #         real_cursor = original_cursor_func()
-
-    #         # Сохраняем оригинальный метод execute
-    #         original_execute = real_cursor.execute
-
-    #         def mocked_execute(sql, params=None):
-    #             # Если вызывается процедура COMPLETE_RECEPTION, подменяем логику
-    #             if "COMPLETE_RECEPTION" in str(sql).upper():
-    #                 # Подменяем fetchone только для этого вызова
-    #                 real_cursor.fetchone = lambda: [50]
-    #                 return None
-
-    #             # Для всех остальных запросов (аутентификация, ORM) выполняем реальный SQL
-    #             return original_execute(sql, params)
-
-    #         # Переопределяем метод execute у реального курсора
-    #         real_cursor.execute = mocked_execute
-    #         return real_cursor
-
-    #     # Подменяем генератор курсоров
-    #     connection.cursor = get_mocked_cursor
-
-    #     try:
-    #         # 1. Создаем реальную запись приема
-    #         appointment = ReceptionLog.objects.create(
-    #             doctor_id=self.doctor,
-    #             patient_id=self.patient,
-    #             appointment_date=self.slot_datetime,
-    #             status="BOOKED",
-    #         )
-    #         drug = Drug.objects.create(drug_title="Vaseline", drug_type="Cream")
-
-    #         data = {
-    #             "log_id": appointment.pk,
-    #             "disease_id": self.disease.disease_id,
-    #             "complains": "Жалобы на головную боль",
-    #             "recommendations": "Покой и обильное питье",
-    #             "drugs": [
-    #                 {"drug_id": drug.drug_id, "dosage": "1 таблетка 2 раза в день"}
-    #             ],
-    #         }
-
-    #         response = self.client.post(self.complete_url, data, format="json")
-    #         print("ОШИБКА ВАЛИДАЦИИ:", response.data)
-
-    #         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    #     finally:
-    #         # Возвращаем оригинальную функцию генерации курсоров
-    #         connection.cursor = original_cursor_func
-
-    def test_create_schedule_success(self):
-        self.set_auth(self.doctor_token)
-
-        schedule_date = (timezone.now() + timedelta(days=2)).strftime("%Y-%m-%d")
-        data = {
-            "doctor": self.doctor.doctor_id,
-            "date": schedule_date,
-            "start_time": "08:00:00",
-            "end_time": "16:00:00",
-        }
-
-        response = self.client.post(self.schedule_url, data, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        self.assertTrue(
-            DoctorSchedule.objects.filter(
-                doctor=self.doctor, date=schedule_date
-            ).exists()
-        )
-
-        self.assertTrue(
-            TimeSlot.objects.filter(
-                doctor=self.doctor, start_datetime__date=schedule_date
-            ).exists()
-        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")

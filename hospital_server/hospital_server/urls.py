@@ -15,6 +15,10 @@ from hospital_server_app.views import (
     views_report,
 )
 from rest_framework import permissions
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -48,6 +52,9 @@ urlpatterns = [
     ),
     path("admin/", admin.site.urls),
     path("user/", include(user_patterns)),
+    path("api-auth/", include("rest_framework.urls")),
+    path("token/", TokenObtainPairView.as_view(), name="get_token"),
+    path("token/refresh/", TokenRefreshView.as_view(), name="refresh_token"),
     path("rooms/", views_room.rooms, name="rooms"),
     path("rooms/<int:pk>/", views_room.room, name="room"),
     path("departments/", views_department.departments, name="departments"),
