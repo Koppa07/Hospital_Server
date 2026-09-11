@@ -40,6 +40,25 @@ user_patterns = [
     path("get_info/", views_user.get_user_info, name="get_user_info"),
     path("logout/", views_user.logout, name="logout"),
 ]
+schedule_patterns = [
+    path("", views_appointment.get_schedule, name="schedule-events"),
+    path("slots/", views_appointment.get_available_slots, name="available-slots"),
+    path("create/", views_appointment.create_schedule, name="create-schedule"),
+    path("book/", views_appointment.book_appointment, name="appointment-book"),
+]
+
+appointment_patterns = [
+    path(
+        "<int:log_id>/complete/",
+        views_appointment.complete_reception,
+        name="appointment-complete",
+    ),
+    path(
+        "<int:log_id>/cancel/",
+        views_appointment.cancel_or_no_show_appointment,
+        name="appointment-cancel",
+    ),
+]
 
 urlpatterns = [
     path(
@@ -70,9 +89,9 @@ urlpatterns = [
     path("diseases/", views_disease.diseases, name="diseases"),
     path("drugs/", views_drug.drugs, name="drugs"),
     path("drugs/<int:pk>/", views_drug.drug, name="drug"),
-    path("doctors/", views_doctor.doctors, name="doctors"),
+    path("doctors/", views_doctor.doctors, name="create-doctor"),
     path("doctors/<int:pk>/", views_doctor.doctor, name="doctor"),
-    path("get-doctors/", views_doctor.DoctorListView.as_view(), name="get-doctors"),
+    path("doctors/", views_doctor.DoctorListView.as_view(), name="get-doctors"),
     path(
         "patients/<int:pk>/history/",
         views_patient.medical_history,
@@ -81,27 +100,10 @@ urlpatterns = [
     path("patients/<int:pk>/", views_patient.patient, name="patient"),
     path("get-patients/", views_patient.PatientListView.as_view(), name="get-patients"),
     path("patients/", views_patient.register_patient, name="register-patient"),
+    path("schedule/", include(schedule_patterns)),
+    path("appointments/", include(appointment_patterns)),
     path(
-        "appointments/cancel-or-noshow/",
-        views_appointment.cancel_or_no_show_appointment,
-        name="appointment-cancel-noshow",
-    ),
-    path(
-        "appointments/book/",
-        views_appointment.book_appointment,
-        name="appointment-book",
-    ),
-    path(
-        "appointments/complete/",
-        views_appointment.complete_reception,
-        name="appointment-complete",
-    ),
-    path(
-        "slots/<int:pk>/", views_appointment.get_available_slots, name="available-slots"
-    ),
-    path("schedule/", views_appointment.create_schedule, name="create-schedule"),
-    path(
-        "api/reports/doctor/<int:doctor_id>/pdf/",
+        "reports/doctor/<int:doctor_id>/pdf/",
         views_report.export_doctor_analytics,
         name="export-doctor-pdf",
     ),

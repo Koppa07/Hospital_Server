@@ -124,11 +124,10 @@ class CompleteReceptionSerializer(serializers.Serializer):
 
 
 class CancelOrNoShowSerializer(serializers.Serializer):
-    log_id = serializers.IntegerField(min_value=1)
     status = serializers.ChoiceField(
         choices=["CANCELLED", "NO_SHOW"],
         error_messages={
-            "invalid_choice": "Допустимы только статусы 'CANCELLED' (Отменена) или 'NO_SHOW' (Неявка)."
+            "invalid_choice": "Допустимы только статусы 'CANCELLED' или 'NO_SHOW'."
         },
     )
 

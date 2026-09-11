@@ -36,13 +36,13 @@ if "test" in sys.argv:
 # Application definition
 
 INSTALLED_APPS = [
+    "hospital_server_app",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "hospital_server_app",
     "rest_framework",
     "rest_framework_simplejwt",
     "corsheaders",
@@ -61,6 +61,8 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
 }
 
 MIDDLEWARE = [
@@ -148,4 +150,3 @@ STATIC_URL = "static/"
 
 
 CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_ALL_CREDENTIALS = True

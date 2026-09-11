@@ -115,29 +115,20 @@ def complete_reception(request):
         return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(["POST"])
-def cancel_or_no_show_appointment(request):
+@api_view(["PATCH", "POST"])
+def cancel_or_no_show_appointment(request, pk):
     serializer = CancelOrNoShowSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    log_id = serializer.validated_data["log_id"]
     new_status = serializer.validated_data["status"]
     user = request.user
 
     try:
-        appointment = ReceptionLog.objects.select_related("patient_id").get(pk=log_id)
+        appointment = ReceptionLog.objects.select_related("patient_id").get(pk=pk)
     except ReceptionLog.DoesNotExist:
         return Response(
             {"detail": "Запись на прием не найдена."}, status=status.HTTP_404_NOT_FOUND
-        )
-
-    if appointment.status != "BOOKED":
-        return Response(
-            {
-                "detail": f"Нельзя изменить статус для записи со статусом {appointment.status}."
-            },
-            status=status.HTTP_400_BAD_REQUEST,
         )
 
     if user.role == "PATIENT":
@@ -208,18 +199,21 @@ def create_schedule(request):
 
 @api_view(["GET"])
 def get_available_slots(request, pk):
+    doctor_id = request.query_params.get("doctor_id")
     target_date_str = request.query_params.get("date")
 
-    if not target_date_str:
+    if not doctor_id or not target_date_str:
         return Response(
-            {"detail": "Укажите параметр даты в формате ?date=YYYY-MM-DD"},
+            {
+                "detail": "Укажите параметры doctor_id и date (?doctor_id=1&date=YYYY-MM-DD)"
+            },
             status=status.HTTP_400_BAD_REQUEST,
         )
 
     now = timezone.now()
 
     available_slots = TimeSlot.objects.filter(
-        doctor_id=pk,
+        doctor_id=doctor_id,
         start_datetime__date=target_date_str,
         start_datetime__gt=now,
         is_booked=False,
@@ -227,3 +221,48 @@ def get_available_slots(request, pk):
 
     serializer = AvailableTimeSlotSerializer(available_slots, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+def get_schedule(request):
+    doctor_id = request.query_params.get("doctor_id")
+    start_date = request.query_params.get("start")
+    end_date = request.query_params.get("end")
+
+    if request.user.role == "DOCTOR":
+        doctor_profile = getattr(request.user, "doctor_profile", None)
+        if doctor_profile:
+            doctor_id = doctor_profile.id
+
+    if not doctor_id:
+        return Response(
+            {"detail": "Необходимо указать doctor_id."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    queryset = ReceptionLog.objects.filter(
+        doctor_id=doctor_id, status__in=["BOOKED", "COMPLETED"]
+    ).select_related("patient_id")
+
+    if start_date:
+        queryset = queryset.filter(appointment_date__gte=start_date)
+    if end_date:
+        queryset = queryset.filter(appointment_date__lte=end_date)
+
+    events = []
+    for log in queryset:
+        events.append(
+            {
+                "id": log.log_id,
+                "title": f"Пациент: {log.patient_id.full_name}",
+                "start": log.appointment_date.isoformat(),
+                "end": (
+                    log.appointment_date + timezone.timedelta(minutes=15)
+                ).isoformat(),
+                "status": log.status,
+                "patient_id": log.patient_id.card_number,
+                "doctor_id": log.doctor_id_id,
+            }
+        )
+
+    return Response(events, status=status.HTTP_200_OK)

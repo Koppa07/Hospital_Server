@@ -610,7 +610,7 @@ class DoctorsTests(APITestCase):
         )
 
         self.list_url = reverse("get-doctors")
-        self.create_url = reverse("doctors")
+        self.create_url = reverse("create-doctor")
 
     def test_get_doctors_list_200(self):
         response = self.client.get(self.list_url)
