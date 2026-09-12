@@ -31,7 +31,11 @@ def department(request, pk):
     except Department.DoesNotExist:
         return Response(status=status.HTTP_404_NOT_FOUND)
 
-    if request.method in ("PUT", "PATCH"):
+    if request.method == "GET":
+        serializer = DepartmentSerializer(dep)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    elif request.method in ("PUT", "PATCH"):
         serializer = DepartmentUpdateSerializer(
             dep, data=request.data, partial=(request.method == "PATCH")
         )

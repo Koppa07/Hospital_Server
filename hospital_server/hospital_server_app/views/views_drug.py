@@ -32,6 +32,10 @@ def drug(request, pk):
     except Drug.DoesNotExist:
         return Response(status=status.HTTP_404_NOT_FOUND)
 
+    if request.method == "GET":
+        serializer = DrugSerializer(drug)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     if request.method in ("PUT", "PATCH"):
         serializer = DrugUpdateSerializer(
             drug, data=request.data, partial=(request.method == "PATCH")

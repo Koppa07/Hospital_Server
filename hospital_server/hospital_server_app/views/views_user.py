@@ -57,10 +57,15 @@ def login(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    token, _ = Token.objects.get_or_create(user=user)
+    refresh = RefreshToken.for_user(user)
     serializer = UserSerializer(instance=user)
     return Response(
-        {"token": token.key, "user": serializer.data}, status=status.HTTP_200_OK
+        {
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "user": serializer.data,
+        },
+        status=status.HTTP_200_OK,
     )
 
 

@@ -198,7 +198,7 @@ def create_schedule(request):
 
 
 @api_view(["GET"])
-def get_available_slots(request, pk):
+def get_available_slots(request):
     doctor_id = request.query_params.get("doctor_id")
     target_date_str = request.query_params.get("date")
 

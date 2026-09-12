@@ -31,7 +31,11 @@ def room(request, pk):
     except Room.DoesNotExist:
         return Response(status=status.HTTP_404_NOT_FOUND)
 
-    if request.method in ("PUT", "PATCH"):
+    if request.method == "GET":
+        serializer = RoomSerializer(room)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    elif request.method in ("PUT", "PATCH"):
         serializer = RoomUpdateSerializer(
             room, data=request.data, partial=(request.method == "PATCH")
         )

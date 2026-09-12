@@ -60,14 +60,18 @@ class PatientListView(generics.ListAPIView):
     ]
 
 
-@api_view(["PUT", "PATCH", "DELETE"])
+@api_view(["PUT", "PATCH", "DELETE", "GET"])
 def patient(request, pk):
     try:
         patient = Patient.objects.get(pk=pk)
     except Patient.DoesNotExist:
         return Response(status=status.HTTP_404_NOT_FOUND)
 
-    if request.method in ("PUT", "PATCH"):
+    if request.method == "GET":
+        serializer = PatientSerializer(patient)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    elif request.method in ("PUT", "PATCH"):
         serializer = PatientUpdateSerializer(
             patient, data=request.data, partial=(request.method == "PATCH")
         )
@@ -87,23 +91,45 @@ def patient(request, pk):
 
 
 @api_view(["GET"])
-def medical_history(request, pk):
-    if request.user.role == "PATIENT":
-        patient_profile = getattr(request.user, "patient_profile", None)
-        if not patient_profile or patient_profile.card_number != pk:
-            return Response(
-                {
-                    "detail": "У вас нет прав для просмотра истории болезни этого пациента."
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
+def medical_history(request):
+    user = request.user
+    role = getattr(user, "role", None)
 
-    completed_receptions = (
-        ReceptionLog.objects.filter(patient_id=pk, status="COMPLETED")
-        .select_related("doctor_id__spec", "disease_id", "pres_id")
-        .prefetch_related("pres_id__prescriptiondrug_set__drug_id")
-        .order_by("-appointment_date")
+    queryset = ReceptionLog.objects.select_related("patient_id", "doctor_id").filter(
+        status="COMPLETED"
     )
 
-    serializer = MedicalHistorySerializer(completed_receptions, many=True)
+    if role == "PATIENT":
+        patient_profile = getattr(user, "patient_profile", None)
+        if not patient_profile:
+            return Response([], status=status.HTTP_200_OK)
+        queryset = queryset.filter(patient_id=patient_profile)
+
+    elif role == "DOCTOR":
+        doctor_profile = getattr(user, "doctor_profile", None)
+        if not doctor_profile:
+            return Response([], status=status.HTTP_200_OK)
+        queryset = queryset.filter(doctor_id=doctor_profile)
+
+        patient_id = request.query_params.get("patient_id")
+        if patient_id:
+            queryset = queryset.filter(patient_id=patient_id)
+
+    elif role in ["ADMIN", "REGISTRAR"]:
+        patient_id = request.query_params.get("patient_id")
+        doctor_id = request.query_params.get("doctor_id")
+
+        if patient_id:
+            queryset = queryset.filter(patient_id=patient_id)
+        if doctor_id:
+            queryset = queryset.filter(doctor_id=doctor_id)
+
+    else:
+        return Response(
+            {"detail": "Доступ запрещен."}, status=status.HTTP_403_FORBIDDEN
+        )
+
+    queryset = queryset.order_by("-appointment_date")
+
+    serializer = MedicalHistorySerializer(queryset, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)

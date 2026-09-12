@@ -45,7 +45,11 @@ def doctor(request, pk):
     except Doctor.DoesNotExist:
         return Response(status=status.HTTP_404_NOT_FOUND)
 
-    if request.method in ("PUT", "PATCH"):
+    if request.method == "GET":
+        serializer = DoctorProfileSerializer(doctor)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    elif request.method in ("PUT", "PATCH"):
         serializer = DoctorUpdateSerializer(
             doctor, data=request.data, partial=(request.method == "PATCH")
         )
