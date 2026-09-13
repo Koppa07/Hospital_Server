@@ -5,9 +5,9 @@ from rest_framework import filters, generics, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from ..models import Patient, ReceptionLog
+from ..models import Patient
 from ..serializers.action_serializers import PatientRegistrationSerializer
-from ..serializers.info_serializers import MedicalHistorySerializer, PatientSerializer
+from ..serializers.info_serializers import PatientSerializer, UserWithPatientSerializer
 from ..serializers.update_serializers import PatientUpdateSerializer
 
 User = get_user_model()
@@ -90,46 +90,44 @@ def patient(request, pk):
         )
 
 
-@api_view(["GET"])
-def medical_history(request):
+@api_view(["POST", "PUT"])
+def create_or_update_patient_profile(request):
     user = request.user
-    role = getattr(user, "role", None)
 
-    queryset = ReceptionLog.objects.select_related("patient_id", "doctor_id").filter(
-        status="COMPLETED"
-    )
-
-    if role == "PATIENT":
-        patient_profile = getattr(user, "patient_profile", None)
-        if not patient_profile:
-            return Response([], status=status.HTTP_200_OK)
-        queryset = queryset.filter(patient_id=patient_profile)
-
-    elif role == "DOCTOR":
-        doctor_profile = getattr(user, "doctor_profile", None)
-        if not doctor_profile:
-            return Response([], status=status.HTTP_200_OK)
-        queryset = queryset.filter(doctor_id=doctor_profile)
-
-        patient_id = request.query_params.get("patient_id")
-        if patient_id:
-            queryset = queryset.filter(patient_id=patient_id)
-
-    elif role in ["ADMIN", "REGISTRAR"]:
-        patient_id = request.query_params.get("patient_id")
-        doctor_id = request.query_params.get("doctor_id")
-
-        if patient_id:
-            queryset = queryset.filter(patient_id=patient_id)
-        if doctor_id:
-            queryset = queryset.filter(doctor_id=doctor_id)
-
-    else:
+    if getattr(user, "role", None) != "PATIENT":
         return Response(
-            {"detail": "Доступ запрещен."}, status=status.HTTP_403_FORBIDDEN
+            {
+                "detail": "Только пользователи с ролью PATIENT могут создавать профиль пациента."
+            },
+            status=status.HTTP_403_FORBIDDEN,
         )
 
-    queryset = queryset.order_by("-appointment_date")
+    patient_profile = getattr(user, "patient_profile", None)
 
-    serializer = MedicalHistorySerializer(queryset, many=True)
-    return Response(serializer.data, status=status.HTTP_200_OK)
+    if request.method == "POST" and patient_profile:
+        return Response(
+            {
+                "detail": "Профиль пациента уже существует. Используйте PUT для обновления."
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    serializer = PatientSerializer(
+        instance=patient_profile,
+        data=request.data,
+        partial=(request.method == "PUT"),
+    )
+
+    if serializer.is_valid():
+        saved_profile = serializer.save(user=user)
+        return Response(
+            {
+                "message": "Профиль пациента успешно сохранен",
+                "profile": PatientSerializer(saved_profile).data,
+            },
+            status=status.HTTP_201_CREATED
+            if not patient_profile
+            else status.HTTP_200_OK,
+        )
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

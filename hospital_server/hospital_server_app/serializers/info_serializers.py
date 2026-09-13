@@ -47,6 +47,21 @@ class UserWithDoctorSerializer(serializers.ModelSerializer):
         fields = ("id", "username", "role", "doctor_profile")
 
 
+class PatientSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Patient
+        fields = ("card_number", "patient_name", "birth_date", "address", "insurance")
+        extra_kwargs = {"card_number": {"read_only": True}}
+
+
+class UserWithPatientSerializer(serializers.ModelSerializer):
+    patient_profile = PatientSerializer(read_only=True)
+
+    class Meta:
+        model = User
+        fields = ("id", "username", "role", "patient_profile")
+
+
 class DrugItemSerializer(serializers.Serializer):
     drug_id = serializers.IntegerField(min_value=1)
     dosage = serializers.CharField(max_length=50)
@@ -96,12 +111,6 @@ class MedicalHistorySerializer(serializers.ModelSerializer):
             "complains",
             "prescription",
         )
-
-
-class PatientSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Patient
-        fields = ("card_number", "patient_name", "birth_date", "address", "insurance")
 
 
 class SpecializationSerializer(serializers.Serializer):

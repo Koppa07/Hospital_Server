@@ -39,6 +39,7 @@ user_patterns = [
     path("get/", views_user.get_users, name="get_users"),
     path("get_info/", views_user.get_user_info, name="get_user_info"),
     path("logout/", views_user.logout, name="logout"),
+    path("change-password/", views_user.change_password, name="change-password"),
 ]
 schedule_patterns = [
     path("", views_appointment.get_schedule, name="schedule-events"),
@@ -48,6 +49,7 @@ schedule_patterns = [
 ]
 
 appointment_patterns = [
+    path("", views_appointment.get_appointments, name="get-appointments"),
     path(
         "<int:log_id>/complete/",
         views_appointment.complete_reception,
@@ -94,13 +96,23 @@ urlpatterns = [
     path("doctors/<int:pk>/", views_doctor.doctor, name="doctor"),
     path("doctors/", views_doctor.DoctorListView.as_view(), name="get-doctors"),
     path(
+        "doctor/profile/",
+        views_doctor.create_or_update_doctor_profile,
+        name="doctor-profile",
+    ),
+    path(
         "medical-history/",
-        views_patient.medical_history,
+        views_appointment.medical_history,
         name="history",
     ),
     path("patients/<int:pk>/", views_patient.patient, name="patient"),
     path("patients/", views_patient.PatientListView.as_view(), name="get-patients"),
-    path("patients/", views_patient.register_patient, name="register-patient"),
+    path("patients/register/", views_patient.register_patient, name="register-patient"),
+    path(
+        "patient/profile/",
+        views_patient.create_or_update_patient_profile,
+        name="patient-profile",
+    ),
     path("schedule/", include(schedule_patterns)),
     path("appointments/", include(appointment_patterns)),
     path(

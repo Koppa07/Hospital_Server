@@ -7,6 +7,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from ..serializers.action_serializers import ChangePasswordSerializer
 from ..serializers.info_serializers import UserSerializer
 
 User = get_user_model()
@@ -118,3 +119,16 @@ def get_users(request):
 
     serializer = UserSerializer(user, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+def change_password(request):
+    serializer = ChangePasswordSerializer(
+        data=request.data, context={"request": request}
+    )
+    if serializer.is_valid():
+        serializer.save()
+        return Response(
+            {"detail": "Пароль успешно изменен."}, status=status.HTTP_200_OK
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

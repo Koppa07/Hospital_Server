@@ -1,3 +1,5 @@
+import secrets
+import string
 from datetime import time, timedelta
 
 from django.contrib.auth import get_user_model
@@ -11,33 +13,43 @@ from .info_serializers import *
 User = get_user_model()
 
 
+def generate_random_password(length=8):
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
 class DoctorRegistrationSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(write_only=True)
-    password = serializers.CharField(write_only=True, min_length=4)
     doctor_name = serializers.CharField(max_length=100)
-    spec_id = serializers.PrimaryKeyRelatedField(
-        queryset=Specialization.objects.all(), source="spec", write_only=True
-    )
-    dep_id = serializers.PrimaryKeyRelatedField(
-        queryset=Department.objects.all(), source="dep", write_only=True
-    )
-    room_id = serializers.PrimaryKeyRelatedField(
-        queryset=Room.objects.all(), source="room", write_only=True
-    )
+    spec = serializers.PrimaryKeyRelatedField(queryset=Specialization.objects.all())
+    dep = serializers.PrimaryKeyRelatedField(queryset=Department.objects.all())
+    room = serializers.PrimaryKeyRelatedField(queryset=Room.objects.all())
+
+    generated_username = serializers.CharField(read_only=True)
+    generated_password = serializers.CharField(read_only=True)
 
     class Meta:
         model = Doctor
-        fields = ("username", "password", "doctor_name", "spec_id", "dep_id", "room_id")
+        fields = (
+            "doctor_name",
+            "spec",
+            "dep",
+            "room",
+            "generated_username",
+            "generated_password",
+        )
 
     def create(self, validated_data):
-        username = validated_data.pop("username")
-        password = validated_data.pop("password")
         doctor_name = validated_data.pop("doctor_name")
 
+        base_username = f"doc_{secrets.randbelow(899999) + 100000}"
+        generated_password = generate_random_password(10)
+
         with transaction.atomic():
-            user = User.objects.create(username=username, role="DOCTOR")
-            user.set_password(password)
-            user.save()
+            user = User.objects.create_user(
+                username=base_username,
+                password=generated_password,
+                role="DOCTOR",
+            )
 
             doctor = Doctor.objects.create(
                 user=user,
@@ -47,6 +59,8 @@ class DoctorRegistrationSerializer(serializers.ModelSerializer):
                 room=validated_data["room"],
             )
 
+        doctor.generated_username = base_username
+        doctor.generated_password = generated_password
         return doctor
 
 
@@ -153,3 +167,20 @@ class DoctorScheduleCreateSerializer(serializers.ModelSerializer):
                 {"date": "Нельзя создавать график на прошедшие даты."}
             )
         return attrs
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(required=True, write_only=True)
+    new_password = serializers.CharField(required=True, write_only=True)
+
+    def validate_old_password(self, value):
+        user = self.context["request"].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Старый пароль указан неверно.")
+        return value
+
+    def save(self, **kwargs):
+        user = self.context["request"].user
+        user.set_password(self.validated_data["new_password"])
+        user.save()
+        return user

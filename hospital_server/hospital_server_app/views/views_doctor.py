@@ -6,7 +6,10 @@ from rest_framework.response import Response
 from ..models import Doctor
 from ..serializers.action_serializers import DoctorRegistrationSerializer
 from ..serializers.update_serializers import DoctorUpdateSerializer
-from ..serializers.info_serializers import DoctorProfileSerializer
+from ..serializers.info_serializers import (
+    DoctorProfileSerializer,
+    UserWithDoctorSerializer,
+)
 
 
 class DoctorListView(generics.ListAPIView):
@@ -64,3 +67,44 @@ def doctor(request, pk):
     elif request.method == "DELETE":
         doctor.delete()
         return Response("Сведения о враче удалены", status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(["POST", "PUT"])
+def create_or_update_doctor_profile(request):
+    user = request.user
+
+    if getattr(user, "role", None) != "DOCTOR":
+        return Response(
+            {
+                "detail": "Только пользователи с ролью DOCTOR могут создавать профиль врача."
+            },
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    doctor_profile = getattr(user, "doctor_profile", None)
+
+    if request.method == "POST" and doctor_profile:
+        return Response(
+            {"detail": "Профиль врача уже существует. Используйте PUT для обновления."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    serializer = UserWithDoctorSerializer(
+        instance=doctor_profile,
+        data=request.data,
+        partial=(request.method == "PUT"),
+    )
+
+    if serializer.is_valid():
+        saved_profile = serializer.save(user=user)
+        return Response(
+            {
+                "message": "Профиль врача успешно сохранен",
+                "profile": UserWithDoctorSerializer(saved_profile).data,
+            },
+            status=status.HTTP_201_CREATED
+            if not doctor_profile
+            else status.HTTP_200_OK,
+        )
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
