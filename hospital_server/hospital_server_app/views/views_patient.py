@@ -13,6 +13,19 @@ from ..serializers.update_serializers import PatientUpdateSerializer
 User = get_user_model()
 
 
+class PatientListView(generics.ListAPIView):
+    queryset = Patient.objects.select_related("user").all()
+    serializer_class = PatientSerializer
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+
+    filterset_fields = {
+        "patient_name": ["icontains"],
+        "card_number": ["icontains"],
+        "insurance": ["icontains"],
+    }
+
+
 @api_view(["POST"])
 def register_patient(request):
     serializer = PatientRegistrationSerializer(data=request.data)
@@ -24,7 +37,7 @@ def register_patient(request):
     try:
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT register_new_patient(%s, %s, %s, %s);",
+                "SELECT register_new_patient(%s::varchar, %s::date, %s::text, %s::varchar);",
                 [
                     data["patient_name"],
                     data["birth_date"],
@@ -45,19 +58,6 @@ def register_patient(request):
     except DatabaseError as e:
         error_message = str(e).split("CONTEXT:")[0].strip()
         return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
-
-
-class PatientListView(generics.ListAPIView):
-    queryset = Patient.objects.select_related("user").all()
-    serializer_class = PatientSerializer
-
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-
-    search_fields = [
-        "patient_name",
-        "card_number",
-        "insurance",
-    ]
 
 
 @api_view(["PUT", "PATCH", "DELETE", "GET"])
@@ -90,19 +90,25 @@ def patient(request, pk):
         )
 
 
-@api_view(["POST", "PUT"])
+@api_view(["POST", "PUT", "GET"])
 def create_or_update_patient_profile(request):
     user = request.user
 
     if getattr(user, "role", None) != "PATIENT":
         return Response(
-            {
-                "detail": "Только пользователи с ролью PATIENT могут создавать профиль пациента."
-            },
+            {"detail": "Доступ разрешен только пациентам."},
             status=status.HTTP_403_FORBIDDEN,
         )
 
     patient_profile = getattr(user, "patient_profile", None)
+
+    if request.method == "GET":
+        if not patient_profile:
+            return Response(
+                {"detail": "Профиль пациента не заполнен."},
+                status=404,
+            )
+        return Response(PatientSerializer(patient_profile).data)
 
     if request.method == "POST" and patient_profile:
         return Response(

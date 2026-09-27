@@ -13,31 +13,6 @@ from ..serializers.info_serializers import UserSerializer
 User = get_user_model()
 
 
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def get_user_info(request):
-    user = request.user
-
-    if user.role == "PATIENT" and hasattr(user, "patient_profile"):
-        patient = user.patient_profile
-        return Response(
-            {
-                "user_id": user.id,
-                "username": user.username,
-                "card_number": patient.card_number,
-                "patient_name": patient.patient_name,
-                "birth_date": patient.birth_date,
-                "insurance": patient.insurance,
-                "address": patient.address,
-            }
-        )
-
-    return Response(
-        {"detail": "Профиль не найден для текущего аккаунта."},
-        status=status.HTTP_404_NOT_FOUND,
-    )
-
-
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def login(request):

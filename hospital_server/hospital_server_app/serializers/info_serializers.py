@@ -33,6 +33,15 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
         fields = (
             "doctor_id",
             "doctor_name",
+            "spec",
+            "dep",
+            "room",
+            "spec_title",
+            "dep_title",
+            "room_number",
+        )
+        read_only_fields = (
+            "doctor_id",
             "spec_title",
             "dep_title",
             "room_number",
@@ -113,9 +122,9 @@ class MedicalHistorySerializer(serializers.ModelSerializer):
         )
 
 
-class SpecializationSerializer(serializers.Serializer):
+class SpecializationSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Department
+        model = Specialization
         fields = ("spec_id", "spec_title")
 
 

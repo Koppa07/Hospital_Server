@@ -37,7 +37,6 @@ user_patterns = [
     path("signup/", views_user.signup, name="signup"),
     path("login/", views_user.login, name="login"),
     path("get/", views_user.get_users, name="get_users"),
-    path("get_info/", views_user.get_user_info, name="get_user_info"),
     path("logout/", views_user.logout, name="logout"),
     path("change-password/", views_user.change_password, name="change-password"),
 ]
@@ -94,7 +93,7 @@ urlpatterns = [
     path("drugs/<int:pk>/", views_drug.drug, name="drug"),
     path("doctors/", views_doctor.doctors, name="create-doctor"),
     path("doctors/<int:pk>/", views_doctor.doctor, name="doctor"),
-    path("doctors/", views_doctor.DoctorListView.as_view(), name="get-doctors"),
+    path("doctors/list/", views_doctor.DoctorListView.as_view(), name="get-doctors"),
     path(
         "doctor/profile/",
         views_doctor.create_or_update_doctor_profile,
@@ -106,7 +105,9 @@ urlpatterns = [
         name="history",
     ),
     path("patients/<int:pk>/", views_patient.patient, name="patient"),
-    path("patients/", views_patient.PatientListView.as_view(), name="get-patients"),
+    path(
+        "patients/list/", views_patient.PatientListView.as_view(), name="get-patients"
+    ),
     path("patients/register/", views_patient.register_patient, name="register-patient"),
     path(
         "patient/profile/",

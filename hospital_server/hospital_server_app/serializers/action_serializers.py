@@ -64,11 +64,15 @@ class DoctorRegistrationSerializer(serializers.ModelSerializer):
         return doctor
 
 
-class PatientRegistrationSerializer(serializers.Serializer):
+class PatientRegistrationSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(max_length=100)
     birth_date = serializers.DateField()
     address = serializers.CharField(required=False, allow_blank=True, default="")
     insurance = serializers.CharField(max_length=16, min_length=16)
+
+    class Meta:
+        model = Patient
+        fields = ("patient_name", "birth_date", "address", "insurance")
 
     def validate_insurance(self, value):
         if not value.isdigit():

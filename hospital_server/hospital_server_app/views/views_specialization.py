@@ -49,4 +49,6 @@ def specialization(request, pk):
 
     elif request.method == "DELETE":
         spec.delete()
-        return Response("Специализация удалена", status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            "Информация о специализации удалена", status=status.HTTP_204_NO_CONTENT
+        )
