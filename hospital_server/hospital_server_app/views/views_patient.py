@@ -26,38 +26,61 @@ class PatientListView(generics.ListAPIView):
     }
 
 
+# @api_view(["POST"])
+# def register_patient(request):
+#     serializer = PatientRegistrationSerializer(data=request.data)
+#     if not serializer.is_valid():
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+#     data = serializer.validated_data
+
+#     try:
+#         with connection.cursor() as cursor:
+#             cursor.execute(
+#                 "SELECT register_new_patient(%s::varchar, %s::date, %s::text, %s::varchar);",
+#                 [
+#                     data["patient_name"],
+#                     data["birth_date"],
+#                     data["address"],
+#                     data["insurance"],
+#                 ],
+#             )
+
+#             new_card_number = cursor.fetchone()[0]
+
+#         return Response(
+#             {
+#                 "message": "Пациент успешно зарегистрирован",
+#                 "card_number": new_card_number,
+#             },
+#             status=status.HTTP_201_CREATED,
+#         )
+#     except DatabaseError as e:
+#         error_message = str(e).split("CONTEXT:")[0].strip()
+#         return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
+
+
 @api_view(["POST"])
 def register_patient(request):
     serializer = PatientRegistrationSerializer(data=request.data)
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    data = serializer.validated_data
+    if serializer.is_valid():
+        patient = serializer.save()
 
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT register_new_patient(%s::varchar, %s::date, %s::text, %s::varchar);",
-                [
-                    data["patient_name"],
-                    data["birth_date"],
-                    data["address"],
-                    data["insurance"],
-                ],
-            )
-
-            new_card_number = cursor.fetchone()[0]
+        response_serializer = PatientSerializer(patient)
 
         return Response(
             {
-                "message": "Пациент успешно зарегистрирован",
-                "card_number": new_card_number,
+                "Добавлен пациент": response_serializer.data,
+                "credentials": {
+                    "username": patient._generated_username,
+                    "password": patient._generated_password,
+                },
             },
             status=status.HTTP_201_CREATED,
         )
-    except DatabaseError as e:
-        error_message = str(e).split("CONTEXT:")[0].strip()
-        return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["PUT", "PATCH", "DELETE", "GET"])

@@ -153,10 +153,23 @@ class DrugSerializer(serializers.ModelSerializer):
 
 
 class AvailableTimeSlotSerializer(serializers.ModelSerializer):
-    start_time = serializers.DateTimeField(source="start_datetime", format="%H:%M")
-    end_time = serializers.DateTimeField(source="end_datetime", format="%H:%M")
     date = serializers.DateTimeField(source="start_datetime", format="%Y-%m-%d")
+    start_datetime = serializers.SerializerMethodField()
+    end_datetime = serializers.SerializerMethodField()
 
     class Meta:
         model = TimeSlot
-        fields = ("slot_id", "doctor_id", "date", "start_time", "end_time", "is_booked")
+        fields = (
+            "slot_id",
+            "doctor_id",
+            "date",
+            "start_datetime",
+            "end_datetime",
+            "is_booked",
+        )
+
+    def get_start_datetime(self, obj):
+        return obj.start_datetime.isoformat()
+
+    def get_end_datetime(self, obj):
+        return obj.end_datetime.isoformat()

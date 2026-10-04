@@ -21,26 +21,33 @@ from ..services import generate_time_slots_for_schedule
 @api_view(["POST"])
 def book_appointment(request):
     serializer = AppointmentBookingSerializer(data=request.data)
+
     if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     data = serializer.validated_data
 
     if getattr(request.user, "role", None) == "PATIENT":
         patient_profile = getattr(request.user, "patient_profile", None)
-        if not patient_profile or patient_profile.card_number != data["patient_id"]:
+
+        if not patient_profile:
             return Response(
-                {"detail": "Вы можете записывать на прием только себя."},
+                {"detail": "Профиль пациента не найден."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+
+        data["patient_id"] = patient_profile.id
 
     try:
         with transaction.atomic():
             slot = (
                 TimeSlot.objects.select_for_update()
                 .filter(
+                    slot_id=data["slot_id"],
                     doctor_id=data["doctor_id"],
-                    start_datetime=data["appointment_date"],
                     is_booked=False,
                 )
                 .first()
@@ -60,7 +67,7 @@ def book_appointment(request):
                     [
                         data["doctor_id"],
                         data["patient_id"],
-                        data["appointment_date"],
+                        slot.start_datetime,
                     ],
                 )
 
@@ -74,7 +81,11 @@ def book_appointment(request):
 
     except DatabaseError as e:
         error_message = str(e).split("CONTEXT:")[0].replace("ERROR:", "").strip()
-        return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            {"error": error_message},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 
 @api_view(["POST"])
@@ -233,10 +244,19 @@ def get_schedule(request):
     start_date = request.query_params.get("start")
     end_date = request.query_params.get("end")
 
-    if getattr(request.user, "role", None) == "DOCTOR":
-        doctor_profile = getattr(request.user, "doctor_profile", None)
-        if doctor_profile:
-            doctor_id = doctor_profile.id
+    user = request.user
+    role = getattr(user, "role", None)
+
+    if role == "DOCTOR":
+        doctor_profile = getattr(user, "doctor_profile", None)
+
+        if not doctor_profile:
+            return Response(
+                {"detail": "Для пользователя не найден профиль врача."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        doctor_id = doctor_profile.doctor_id
 
     if not doctor_id:
         return Response(
@@ -244,12 +264,15 @@ def get_schedule(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    queryset = ReceptionLog.objects.filter(doctor_id=doctor_id).select_related(
-        "patient_id"
+    queryset = (
+        ReceptionLog.objects.filter(doctor_id=doctor_id)
+        .select_related("patient_id", "doctor_id")
+        .order_by("appointment_date")
     )
 
     if start_date:
         queryset = queryset.filter(appointment_date__gte=start_date)
+
     if end_date:
         queryset = queryset.filter(appointment_date__lte=end_date)
 
@@ -266,7 +289,10 @@ def get_schedule(request):
         for log in queryset
     ]
 
-    return Response(events, status=status.HTTP_200_OK)
+    return Response(
+        events,
+        status=status.HTTP_200_OK,
+    )
 
 
 @api_view(["GET"])

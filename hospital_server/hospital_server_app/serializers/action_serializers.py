@@ -72,20 +72,44 @@ class PatientRegistrationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Patient
-        fields = ("patient_name", "birth_date", "address", "insurance")
+        fields = (
+            "patient_name",
+            "birth_date",
+            "address",
+            "insurance",
+        )
 
-    def validate_insurance(self, value):
-        if not value.isdigit():
-            raise serializers.ValidationError(
-                "Номер полиса ОМС должен состоять только из цифр."
+    def create(self, validated_data):
+        patient_name = validated_data.pop("patient_name")
+
+        base_username = f"patient_{secrets.randbelow(899999) + 100000}"
+        generated_password = generate_random_password(10)
+
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=base_username,
+                password=generated_password,
+                role="PATIENT",
             )
-        return value
+
+            patient = Patient.objects.create(
+                user=user,
+                patient_name=patient_name,
+                birth_date=validated_data["birth_date"],
+                address=validated_data["address"],
+                insurance=validated_data["insurance"],
+            )
+
+        patient._generated_username = base_username
+        patient._generated_password = generated_password
+
+        return patient
 
 
 class AppointmentBookingSerializer(serializers.Serializer):
     doctor_id = serializers.IntegerField(min_value=1)
     patient_id = serializers.IntegerField(min_value=1)
-    appointment_date = serializers.DateTimeField()
+    slot_id = serializers.IntegerField()
 
     def validate_appointment_date(self, value):
         now = timezone.now()
