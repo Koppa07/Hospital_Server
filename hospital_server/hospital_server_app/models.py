@@ -188,7 +188,7 @@ class ReceptionLog(models.Model):
 
 class DoctorSchedule(models.Model):
     schedule_id = models.AutoField(primary_key=True, db_column="schedule_id")
-    doctor = models.ForeignKey(
+    doctor_id = models.ForeignKey(
         "Doctor",
         on_delete=models.CASCADE,
         related_name="schedules",
