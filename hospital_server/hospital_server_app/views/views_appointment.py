@@ -1,5 +1,6 @@
 from django.db import DatabaseError, connection, transaction
 from django.utils import timezone
+from datetime import timedelta, datetime, time
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -14,6 +15,7 @@ from ..serializers.action_serializers import (
 from ..serializers.info_serializers import (
     AvailableTimeSlotSerializer,
     MedicalHistorySerializer,
+    AppointmentSerializer,
 )
 from ..services import generate_time_slots_for_schedule
 
@@ -29,17 +31,6 @@ def book_appointment(request):
         )
 
     data = serializer.validated_data
-
-    if getattr(request.user, "role", None) == "PATIENT":
-        patient_profile = getattr(request.user, "patient_profile", None)
-
-        if not patient_profile:
-            return Response(
-                {"detail": "Профиль пациента не найден."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        data["patient_id"] = patient_profile.id
 
     try:
         with transaction.atomic():
@@ -130,7 +121,7 @@ def complete_reception(request):
 
 
 @api_view(["PATCH", "POST"])
-def cancel_or_no_show_appointment(request, pk):
+def cancel_or_no_show_appointment(request, log_id):
     serializer = CancelOrNoShowSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -139,7 +130,9 @@ def cancel_or_no_show_appointment(request, pk):
     user = request.user
 
     try:
-        appointment = ReceptionLog.objects.select_related("patient_id").get(pk=pk)
+        appointment = ReceptionLog.objects.select_related("patient_id").get(
+            log_id=log_id
+        )
     except ReceptionLog.DoesNotExist:
         return Response(
             {"detail": "Запись на прием не найдена."},
@@ -279,7 +272,7 @@ def get_schedule(request):
     events = [
         {
             "id": log.log_id,
-            "title": f"Пациент: {log.patient_id.full_name}",
+            "title": f"Пациент: {log.patient_id.patient_name}",
             "start": log.appointment_date.isoformat(),
             "end": (log.appointment_date + timezone.timedelta(minutes=15)).isoformat(),
             "status": log.status,
@@ -341,17 +334,58 @@ def medical_history(request):
 
 
 @api_view(["GET"])
-def get_appointments(request):
+def get_planned_appointments(request):
     user = request.user
     role = getattr(user, "role", None)
+    now = timezone.now()
 
-    queryset = ReceptionLog.objects.select_related("patient_id", "doctor_id").all()
+    queryset = (
+        ReceptionLog.objects.select_related("patient_id", "doctor_id")
+        .filter(appointment_date__gte=now)
+        .exclude(status="COMPLETED")
+    )
 
     if role == "PATIENT":
         patient_profile = getattr(user, "patient_profile", None)
         if not patient_profile:
             return Response([], status=status.HTTP_200_OK)
         queryset = queryset.filter(patient_id=patient_profile)
+
+    elif role == "DOCTOR":
+        doctor_profile = getattr(user, "doctor_profile", None)
+        if not doctor_profile:
+            return Response([], status=status.HTTP_200_OK)
+        queryset = queryset.filter(doctor_id=doctor_profile)
+
+        patient_id = request.query_params.get("patient_id")
+        if patient_id:
+            queryset = queryset.filter(patient_id=patient_id)
+    else:
+        return Response(
+            {"detail": "Доступ запрещен."}, status=status.HTTP_403_FORBIDDEN
+        )
+
+    queryset = queryset.order_by("-appointment_date")
+
+    serializer = AppointmentSerializer(queryset, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+def get_appointments(request):
+    user = request.user
+    role = getattr(user, "role", None)
+
+    queryset = ReceptionLog.objects.select_related("patient_id", "doctor_id").all()
+    date = request.query_params.get("date")
+    if role == "PATIENT":
+        patient_profile = getattr(user, "patient_profile", None)
+        doctor_id = request.query_params.get("doctor_id")
+        if not patient_profile:
+            return Response([], status=status.HTTP_200_OK)
+        queryset = queryset.filter(patient_id=patient_profile)
+        if doctor_id:
+            queryset = queryset.filter(doctor_id=doctor_id)
 
     elif role == "DOCTOR":
         doctor_profile = getattr(user, "doctor_profile", None)
@@ -377,7 +411,36 @@ def get_appointments(request):
             {"detail": "Доступ запрещен."}, status=status.HTTP_403_FORBIDDEN
         )
 
+    if date:
+        try:
+            selected_date = datetime.strptime(
+                date,
+                "%Y-%m-%d",
+            ).date()
+        except ValueError:
+            return Response(
+                {"detail": ("Неверный формат даты. Ожидается YYYY-MM-DD.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        current_tz = timezone.get_current_timezone()
+
+        start_datetime = timezone.make_aware(
+            datetime.combine(
+                selected_date,
+                time.min,
+            ),
+            current_tz,
+        )
+
+        end_datetime = start_datetime + timedelta(days=1)
+
+        queryset = queryset.filter(
+            appointment_date__gte=start_datetime,
+            appointment_date__lt=end_datetime,
+        )
+
     queryset = queryset.order_by("-appointment_date")
 
-    serializer = MedicalHistorySerializer(queryset, many=True)
+    serializer = AppointmentSerializer(queryset, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)

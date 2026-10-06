@@ -34,6 +34,7 @@ def login(request):
         )
 
     refresh = RefreshToken.for_user(user)
+    refresh.payload.update({"user_id": user.id, "username": user.username})
     serializer = UserSerializer(instance=user)
     return Response(
         {

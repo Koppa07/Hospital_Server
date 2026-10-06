@@ -59,6 +59,9 @@ appointment_patterns = [
         views_appointment.cancel_or_no_show_appointment,
         name="appointment-cancel",
     ),
+    path(
+        "planned/", views_appointment.get_planned_appointments, name="get-planned-apps"
+    ),
 ]
 
 urlpatterns = [
@@ -73,8 +76,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("user/", include(user_patterns)),
     path("api-auth/", include("rest_framework.urls")),
-    path("token/", TokenObtainPairView.as_view(), name="get_token"),
-    path("token/refresh/", TokenRefreshView.as_view(), name="refresh_token"),
+    path("api/token/", TokenObtainPairView.as_view(), name="get_token"),
+    path("api/token/refresh/", TokenRefreshView.as_view(), name="refresh_token"),
     path("rooms/", views_room.rooms, name="rooms"),
     path("rooms/<int:pk>/", views_room.room, name="room"),
     path("departments/", views_department.departments, name="departments"),

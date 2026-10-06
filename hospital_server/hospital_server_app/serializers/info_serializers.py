@@ -122,6 +122,43 @@ class MedicalHistorySerializer(serializers.ModelSerializer):
         )
 
 
+class AppointmentSerializer(serializers.ModelSerializer):
+    doctor_name = serializers.CharField(source="doctor_id.doctor_name", read_only=True)
+    doctor_specialization = serializers.CharField(
+        source="doctor_id.spec.spec_title", read_only=True
+    )
+    disease_title = serializers.CharField(
+        source="disease_id.disease_title", read_only=True
+    )
+    disease_code = serializers.CharField(
+        source="disease_id.disease_code", read_only=True
+    )
+    prescription = PrescriptionDetailSerializer(source="pres_id", read_only=True)
+    room_number = serializers.CharField(
+        source="doctor_id.room.room_number", read_only=True
+    )
+    status = serializers.CharField(read_only=True)
+    patient_name = serializers.CharField(
+        source="patient_id.patient_name", read_only=True
+    )
+
+    class Meta:
+        model = ReceptionLog
+        fields = (
+            "log_id",
+            "appointment_date",
+            "doctor_name",
+            "doctor_specialization",
+            "disease_code",
+            "disease_title",
+            "complains",
+            "prescription",
+            "room_number",
+            "status",
+            "patient_name",
+        )
+
+
 class SpecializationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Specialization
