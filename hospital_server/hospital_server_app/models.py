@@ -200,7 +200,7 @@ class DoctorSchedule(models.Model):
 
     class Meta:
         db_table = "schedule"
-        unique_together = ("doctor", "date")
+        unique_together = ("doctor_id", "date")
         ordering = ["date", "start_time"]
 
     def __str__(self):
