@@ -179,7 +179,7 @@ class DoctorScheduleCreateSerializer(serializers.ModelSerializer):
         model = DoctorSchedule
         fields = (
             "schedule_id",
-            "doctor",
+            "doctor_id",
             "date",
             "start_time",
             "end_time",
