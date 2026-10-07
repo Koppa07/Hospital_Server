@@ -9,7 +9,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project
 
 COPY . .
-
+ENV PATH="/pis/.venv/bin:$PATH"
 EXPOSE 8000
 
 CMD [".venv/bin/python", "hospital_server/manage.py", "runserver", "0.0.0.0:8000"]
