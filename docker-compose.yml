@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:17
+    container_name: pis-db
+    environment:
+      POSTGRES_DB: pis
+      POSTGRES_USER: pis
+      POSTGRES_PASSWORD: pis_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: .
+    container_name: pis-backend
+    ports:
+      - "8000:8000"
+    environment:
+      DB_NAME: pis
+      DB_USER: pis
+      DB_PASSWORD: pis_password
+      DB_HOST: db
+      DB_PORT: 5432
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
