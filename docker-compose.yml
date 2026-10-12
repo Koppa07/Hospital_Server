@@ -3,9 +3,9 @@ services:
     image: postgres:17
     container_name: pis-db
     environment:
-      POSTGRES_DB: pis
-      POSTGRES_USER: pis
-      POSTGRES_PASSWORD: pis_password
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -17,10 +17,10 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DB_NAME: pis
-      DB_USER: pis
-      DB_PASSWORD: pis_password
-      DB_HOST: db
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: ${DB_HOST}
       DB_PORT: 5432
     depends_on:
       - db
