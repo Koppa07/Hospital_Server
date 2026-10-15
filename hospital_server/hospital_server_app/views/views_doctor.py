@@ -35,7 +35,13 @@ def doctors(request):
         doctor = serializer.save()
         response_serializer = DoctorProfileSerializer(doctor)
         return Response(
-            {"Добавлен врач": response_serializer.data},
+            {
+                "Добавлен врач": response_serializer.data,
+                "credentials": {
+                    "username": doctor._generated_username,
+                    "password": doctor._generated_password,
+                },
+            },
             status=status.HTTP_201_CREATED,
         )
 

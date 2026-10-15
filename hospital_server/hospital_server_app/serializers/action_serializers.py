@@ -24,9 +24,6 @@ class DoctorRegistrationSerializer(serializers.ModelSerializer):
     dep = serializers.PrimaryKeyRelatedField(queryset=Department.objects.all())
     room = serializers.PrimaryKeyRelatedField(queryset=Room.objects.all())
 
-    generated_username = serializers.CharField(read_only=True)
-    generated_password = serializers.CharField(read_only=True)
-
     class Meta:
         model = Doctor
         fields = (
@@ -34,8 +31,6 @@ class DoctorRegistrationSerializer(serializers.ModelSerializer):
             "spec",
             "dep",
             "room",
-            "generated_username",
-            "generated_password",
         )
 
     def create(self, validated_data):
@@ -59,8 +54,8 @@ class DoctorRegistrationSerializer(serializers.ModelSerializer):
                 room=validated_data["room"],
             )
 
-        doctor.generated_username = base_username
-        doctor.generated_password = generated_password
+        doctor._generated_username = base_username
+        doctor._generated_password = generated_password
         return doctor
 
 
@@ -126,8 +121,8 @@ class AppointmentBookingSerializer(serializers.Serializer):
             )
 
         appointment_time = value.time()
-        start_work_time = time(8, 0)  # 08:00
-        end_work_time = time(20, 0)  # 20:00
+        start_work_time = time(8, 0)
+        end_work_time = time(20, 0)
 
         if not (start_work_time <= appointment_time < end_work_time):
             raise serializers.ValidationError(

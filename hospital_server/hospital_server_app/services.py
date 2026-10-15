@@ -22,7 +22,7 @@ def generate_time_slots_for_schedule(schedule: DoctorSchedule):
         slot_end = current_time + slot_delta
         slots_to_create.append(
             TimeSlot(
-                doctor=schedule.doctor,
+                doctor=schedule.doctor_id,
                 start_datetime=current_time,
                 end_datetime=slot_end,
                 is_booked=False,
