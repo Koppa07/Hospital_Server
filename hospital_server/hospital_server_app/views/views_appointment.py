@@ -5,7 +5,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from ..models import ReceptionLog, TimeSlot
+from ..models import DoctorSchedule, ReceptionLog, TimeSlot
 from ..serializers.action_serializers import (
     AppointmentBookingSerializer,
     CancelOrNoShowSerializer,
@@ -251,36 +251,68 @@ def get_schedule(request):
 
         doctor_id = doctor_profile.doctor_id
 
-    if not doctor_id:
+    if not doctor_id and role not in ["ADMIN", "REGISTRAR"]:
         return Response(
             {"detail": "Необходимо указать doctor_id."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    queryset = (
-        ReceptionLog.objects.filter(doctor_id=doctor_id)
-        .select_related("patient_id", "doctor_id")
-        .order_by("appointment_date")
+    appointments = ReceptionLog.objects.select_related(
+        "patient_id", "doctor_id"
+    ).order_by("appointment_date")
+    schedules = DoctorSchedule.objects.select_related("doctor_id").order_by(
+        "date", "start_time"
     )
 
+    if doctor_id:
+        appointments = appointments.filter(doctor_id=doctor_id)
+        schedules = schedules.filter(doctor_id=doctor_id)
+
     if start_date:
-        queryset = queryset.filter(appointment_date__gte=start_date)
+        appointments = appointments.filter(appointment_date__date__gte=start_date)
 
     if end_date:
-        queryset = queryset.filter(appointment_date__lte=end_date)
+        appointments = appointments.filter(appointment_date__date__lte=end_date)
 
     events = [
         {
             "id": log.log_id,
+            "type": "appointment",
             "title": f"Пациент: {log.patient_id.patient_name}",
             "start": log.appointment_date.isoformat(),
             "end": (log.appointment_date + timezone.timedelta(minutes=15)).isoformat(),
             "status": log.status,
             "patient_id": log.patient_id.card_number,
             "doctor_id": log.doctor_id_id,
+            "doctor_name": log.doctor_id.doctor_name,
         }
-        for log in queryset
+        for log in appointments
     ]
+
+    if start_date:
+        schedules = schedules.filter(date__gte=start_date)
+
+    if end_date:
+        schedules = schedules.filter(date__lte=end_date)
+
+    current_tz = timezone.get_current_timezone()
+    events.extend(
+        {
+            "id": schedule.schedule_id,
+            "type": "shift",
+            "title": "Рабочее время врача",
+            "start": timezone.make_aware(
+                datetime.combine(schedule.date, schedule.start_time), current_tz
+            ).isoformat(),
+            "end": timezone.make_aware(
+                datetime.combine(schedule.date, schedule.end_time), current_tz
+            ).isoformat(),
+            "doctor_id": schedule.doctor_id_id,
+            "doctor_name": schedule.doctor_id.doctor_name,
+        }
+        for schedule in schedules
+    )
+    events.sort(key=lambda event: event["start"])
 
     return Response(
         events,
