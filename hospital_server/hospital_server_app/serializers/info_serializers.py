@@ -73,7 +73,19 @@ class UserWithPatientSerializer(serializers.ModelSerializer):
 
 class DrugItemSerializer(serializers.Serializer):
     drug_id = serializers.IntegerField(min_value=1)
-    dosage = serializers.CharField(max_length=50)
+    dosage = serializers.CharField(allow_blank=False, trim_whitespace=True)
+    schedule = serializers.CharField(allow_blank=False, trim_whitespace=True)
+
+    def validate(self, attrs):
+        prescription_dosage = (
+            f"Дозировка: {attrs['dosage']}; схема приема: {attrs['schedule']}"
+        )
+        if len(prescription_dosage) > 100:
+            raise serializers.ValidationError(
+                "Дозировка и схема приема вместе не должны превышать 100 символов."
+            )
+        attrs["prescription_dosage"] = prescription_dosage
+        return attrs
 
 
 class PrescriptionDrugDetailSerializer(serializers.ModelSerializer):
@@ -87,15 +99,21 @@ class PrescriptionDrugDetailSerializer(serializers.ModelSerializer):
 
 class PrescriptionDetailSerializer(serializers.ModelSerializer):
     drugs = PrescriptionDrugDetailSerializer(
-        source="prescriptiondrug_set", many=True, read_only=True
+        source="prescription_drugs", many=True, read_only=True
     )
 
     class Meta:
         model = Prescription
-        fields = ("pres_id", "recommendations", "pres_date", "drugs")
+        fields = ("pres_id", "recommendations", "drugs")
 
 
 class MedicalHistorySerializer(serializers.ModelSerializer):
+    patient_name = serializers.CharField(
+        source="patient_id.patient_name", read_only=True
+    )
+    card_number = serializers.IntegerField(
+        source="patient_id.card_number", read_only=True
+    )
     doctor_name = serializers.CharField(source="doctor_id.doctor_name", read_only=True)
     doctor_specialization = serializers.CharField(
         source="doctor_id.spec.spec_title", read_only=True
@@ -113,6 +131,8 @@ class MedicalHistorySerializer(serializers.ModelSerializer):
         fields = (
             "log_id",
             "appointment_date",
+            "patient_name",
+            "card_number",
             "doctor_name",
             "doctor_specialization",
             "disease_code",

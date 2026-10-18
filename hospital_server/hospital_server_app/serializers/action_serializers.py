@@ -151,12 +151,19 @@ class CompleteReceptionSerializer(serializers.Serializer):
     drugs = DrugItemSerializer(many=True, required=False, default=[])
 
     def validate(self, attrs):
-        if attrs.get("drugs") and not attrs.get("recommendations"):
-            raise serializers.ValidationError(
-                {
-                    "recommendations": "Укажите общие рекомендации по лечению для выписываемого рецепта."
-                }
+        errors = {}
+        drugs = attrs.get("drugs", [])
+        drug_ids = [drug["drug_id"] for drug in drugs]
+        if len(drug_ids) != len(set(drug_ids)):
+            errors["drugs"] = "Нельзя добавлять один препарат в рецепт повторно."
+
+        if drugs and not attrs.get("recommendations"):
+            errors["recommendations"] = (
+                "Укажите общие рекомендации по лечению для выписываемого рецепта."
             )
+
+        if errors:
+            raise serializers.ValidationError(errors)
         return attrs
 
 

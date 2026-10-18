@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.test import SimpleTestCase
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -7,6 +8,8 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import *
+from .serializers.action_serializers import CompleteReceptionSerializer
+from .serializers.info_serializers import PrescriptionDetailSerializer
 
 
 class SignupTests(APITestCase):
@@ -762,3 +765,58 @@ class AppointmentAndScheduleTests(APITestCase):
 
     def set_auth(self, token):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+
+
+class CompleteReceptionSerializerTests(SimpleTestCase):
+    def valid_data(self, drugs):
+        return {
+            "log_id": 1,
+            "disease_id": 1,
+            "complains": "Кашель и высокая температура",
+            "recommendations": "Пить больше жидкости",
+            "drugs": drugs,
+        }
+
+    def test_rejects_duplicate_drugs(self):
+        data = self.valid_data(
+            [
+                {"drug_id": 1, "dosage": "500 мг", "schedule": "2 раза в день"},
+                {"drug_id": 1, "dosage": "250 мг", "schedule": "1 раз в день"},
+            ]
+        )
+
+        serializer = CompleteReceptionSerializer(data=data)
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("drugs", serializer.errors)
+
+    def test_requires_dosage_and_schedule_for_each_drug(self):
+        data = self.valid_data([{"drug_id": 1, "dosage": "500 мг"}])
+
+        serializer = CompleteReceptionSerializer(data=data)
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("schedule", serializer.errors["drugs"][0])
+
+    def test_stores_dosage_and_schedule_together(self):
+        data = self.valid_data(
+            [{"drug_id": 1, "dosage": "500 мг", "schedule": "2 раза в день"}]
+        )
+
+        serializer = CompleteReceptionSerializer(data=data)
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(
+            serializer.validated_data["drugs"][0]["prescription_dosage"],
+            "Дозировка: 500 мг; схема приема: 2 раза в день",
+        )
+
+
+class PrescriptionDetailSerializerTests(SimpleTestCase):
+    def test_serializer_fields_match_prescription_model(self):
+        serializer = PrescriptionDetailSerializer()
+
+        self.assertEqual(
+            tuple(serializer.fields),
+            ("pres_id", "recommendations", "drugs"),
+        )

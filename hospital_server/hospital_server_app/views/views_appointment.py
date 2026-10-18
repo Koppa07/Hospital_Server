@@ -80,8 +80,10 @@ def book_appointment(request):
 
 
 @api_view(["POST"])
-def complete_reception(request):
-    serializer = CompleteReceptionSerializer(data=request.data)
+def complete_reception(request, log_id):
+    serializer = CompleteReceptionSerializer(
+        data={**request.data, "log_id": log_id}
+    )
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -104,7 +106,11 @@ def complete_reception(request):
                     for drug in data["drugs"]:
                         cursor.execute(
                             "CALL add_drug_to_prescription(%s, %s, %s);",
-                            [new_pres_id, drug["drug_id"], drug["dosage"]],
+                            [
+                                new_pres_id,
+                                drug["drug_id"],
+                                drug["prescription_dosage"],
+                            ],
                         )
 
         return Response(
