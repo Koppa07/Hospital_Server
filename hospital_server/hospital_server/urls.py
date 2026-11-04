@@ -42,6 +42,11 @@ user_patterns = [
 ]
 schedule_patterns = [
     path("", views_appointment.get_schedule, name="schedule-events"),
+    path(
+        "available-dates/",
+        views_appointment.get_available_dates,
+        name="available-dates",
+    ),
     path("slots/", views_appointment.get_available_slots, name="available-slots"),
     path("create/", views_appointment.create_schedule, name="create-schedule"),
     path("book/", views_appointment.book_appointment, name="appointment-book"),

@@ -212,6 +212,38 @@ def create_schedule(request):
 
 
 @api_view(["GET"])
+def get_available_dates(request):
+    doctor_id = request.query_params.get("doctor_id")
+
+    if not doctor_id:
+        return Response(
+            {"detail": "Укажите параметр doctor_id."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        doctor_id = int(doctor_id)
+    except (TypeError, ValueError):
+        return Response(
+            {"detail": "Параметр doctor_id должен быть числом."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    dates = (
+        TimeSlot.objects.filter(
+            doctor_id=doctor_id,
+            start_datetime__gt=timezone.now(),
+            is_booked=False,
+        )
+        .dates("start_datetime", "day")
+    )
+    return Response(
+        [available_date.isoformat() for available_date in dates],
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(["GET"])
 def get_available_slots(request):
     doctor_id = request.query_params.get("doctor_id")
     target_date_str = request.query_params.get("date")

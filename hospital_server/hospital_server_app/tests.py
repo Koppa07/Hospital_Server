@@ -820,3 +820,65 @@ class PrescriptionDetailSerializerTests(SimpleTestCase):
             tuple(serializer.fields),
             ("pres_id", "recommendations", "drugs"),
         )
+
+
+class AvailableDateTests(APITestCase):
+    def setUp(self):
+        user = User.objects.create_user(
+            username="available_dates_patient",
+            password="pass123",
+            role="PATIENT",
+        )
+        self.client.force_authenticate(user=user)
+
+        doctor_user = User.objects.create_user(
+            username="available_dates_doctor",
+            password="pass123",
+            role="DOCTOR",
+        )
+        specialization = Specialization.objects.create(spec_title="Терапия")
+        department = Department.objects.create(
+            dep_title="Терапевтическое", name_of_manager="Петров П.П."
+        )
+        room = Room.objects.create(room_number=101)
+        doctor = Doctor.objects.create(
+            user=doctor_user,
+            doctor_name="Иван Иванов",
+            spec=specialization,
+            dep=department,
+            room=room,
+        )
+        self.doctor_id = doctor.doctor_id
+
+        self.available_dates_url = reverse("available-dates")
+        tomorrow = timezone.now() + timedelta(days=1)
+        self.slot_datetime = tomorrow.replace(
+            hour=10, minute=0, second=0, microsecond=0
+        )
+        TimeSlot.objects.create(
+            doctor=doctor,
+            start_datetime=self.slot_datetime,
+            end_datetime=self.slot_datetime + timedelta(minutes=15),
+            is_booked=False,
+        )
+        booked_datetime = self.slot_datetime + timedelta(days=1)
+        TimeSlot.objects.create(
+            doctor=doctor,
+            start_datetime=booked_datetime,
+            end_datetime=booked_datetime + timedelta(minutes=15),
+            is_booked=True,
+        )
+
+    def test_returns_only_dates_with_free_future_slots(self):
+        response = self.client.get(
+            self.available_dates_url,
+            {"doctor_id": self.doctor_id},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [self.slot_datetime.date().isoformat()])
+
+    def test_requires_doctor_id(self):
+        response = self.client.get(self.available_dates_url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
