@@ -3,8 +3,6 @@ from rest_framework import serializers
 
 from ..models import *
 
-User = get_user_model()
-
 
 class SpecializationUpdateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -22,12 +20,6 @@ class RoomUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Room
         fields = ("room_number", "equipment")
-
-
-class DiseaseUpdateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Disease
-        fields = ("disease_code", "disease_title")
 
 
 class DrugUpdateSerializer(serializers.ModelSerializer):

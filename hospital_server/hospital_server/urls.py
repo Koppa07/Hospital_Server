@@ -37,6 +37,7 @@ user_patterns = [
     path("signup/", views_user.signup, name="signup"),
     path("login/", views_user.login, name="login"),
     path("get/", views_user.get_users, name="get_users"),
+    path("by-role/", views_user.get_users_by_role, name="get-users-by-role"),
     path("logout/", views_user.logout, name="logout"),
     path("change-password/", views_user.change_password, name="change-password"),
 ]

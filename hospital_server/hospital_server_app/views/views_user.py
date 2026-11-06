@@ -2,7 +2,11 @@ from django.contrib.auth import get_user_model
 from hospital_server_app.models import *
 from rest_framework import status
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import (
+    api_view,
+    authentication_classes,
+    permission_classes,
+)
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -108,3 +112,22 @@ def change_password(request):
             {"detail": "Пароль успешно изменен."}, status=status.HTTP_200_OK
         )
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def get_users_by_role(request):
+    role = request.query_params.get("role")
+    valid_roles = dict(User.ROLE_CHOICES)
+
+    if role not in valid_roles:
+        return Response(
+            {"detail": "Укажите допустимую роль."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    usernames = User.objects.filter(role=role, is_active=True).order_by(
+        "username"
+    ).values_list("username", flat=True)
+    return Response(list(usernames), status=status.HTTP_200_OK)

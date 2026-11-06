@@ -6,10 +6,7 @@ from rest_framework.response import Response
 
 from ..models import Doctor
 from ..serializers.action_serializers import DoctorRegistrationSerializer
-from ..serializers.info_serializers import (
-    DoctorProfileSerializer,
-    UserWithDoctorSerializer,
-)
+from ..serializers.info_serializers import DoctorProfileSerializer
 from ..serializers.update_serializers import DoctorUpdateSerializer
 
 User = get_user_model()

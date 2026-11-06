@@ -66,6 +66,32 @@ class LoginTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
+class UsersByRoleTests(APITestCase):
+    def setUp(self):
+        self.url = reverse("get-users-by-role")
+        User.objects.create_user(username="doctor_b", password="pass123", role="DOCTOR")
+        User.objects.create_user(username="doctor_a", password="pass123", role="DOCTOR")
+        User.objects.create_user(username="patient", password="pass123", role="PATIENT")
+        User.objects.create_user(
+            username="inactive_doctor",
+            password="pass123",
+            role="DOCTOR",
+            is_active=False,
+        )
+
+    def test_returns_active_usernames_for_selected_role_without_authentication(self):
+        response = self.client.get(self.url, {"role": "DOCTOR"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, ["doctor_a", "doctor_b"])
+
+    def test_rejects_missing_or_invalid_role(self):
+        for role in ("", "UNKNOWN"):
+            with self.subTest(role=role):
+                response = self.client.get(self.url, {"role": role})
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
 class LogoutTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="TestDoctor", password="pass123")
