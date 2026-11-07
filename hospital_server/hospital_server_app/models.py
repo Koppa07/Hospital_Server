@@ -180,7 +180,7 @@ class ReceptionLog(models.Model):
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default="BOOKED", db_column="status"
     )
-    complains = models.TextField(db_column="complains")
+    complains = models.TextField(db_column="complains", null=True, blank=True)
 
     class Meta:
         db_table = "reception_log"
