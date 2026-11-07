@@ -1,11 +1,14 @@
+from datetime import date
+
+from django.db import DatabaseError, connection
 from django.db.models import Count, Q
 from django.http import FileResponse
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from ..reports import generate_analytics_pdf
 from ..models import Doctor, ReceptionLog
+from ..reports import generate_analytics_pdf, generate_diagnosis_drug_pdf
 
 
 @api_view(["GET"])
@@ -75,6 +78,81 @@ def export_doctor_analytics(request, doctor_id):
 
     filename = f"analytics_doctor_{doctor_id}_{start_date}_{end_date}.pdf"
 
+    return FileResponse(
+        pdf_buffer,
+        as_attachment=True,
+        filename=filename,
+        content_type="application/pdf",
+    )
+
+
+@api_view(["GET"])
+def export_diagnosis_drugs_analytics(request):
+    date_from = request.query_params.get("date_from")
+    date_to = request.query_params.get("date_to")
+
+    if not date_from or not date_to:
+        return Response(
+            {
+                "error": (
+                    "Необходимо указать начальную и конечную даты "
+                    "(формат YYYY-MM-DD)"
+                )
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        parsed_date_from = date.fromisoformat(date_from)
+        parsed_date_to = date.fromisoformat(date_to)
+    except ValueError:
+        return Response(
+            {"error": "Даты должны быть указаны в формате YYYY-MM-DD"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if (
+        parsed_date_from.isoformat() != date_from
+        or parsed_date_to.isoformat() != date_to
+    ):
+        return Response(
+            {"error": "Даты должны быть указаны в формате YYYY-MM-DD"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if parsed_date_from > parsed_date_to:
+        return Response(
+            {"error": "Начальная дата не может быть позднее конечной"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT *
+                FROM GET_DIAGNOSIS_DRUG_REPORT(%s, %s)
+                """,
+                [parsed_date_from, parsed_date_to],
+            )
+
+            columns = [col[0].upper() for col in cursor.description]
+            rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+        report_data = {
+            "period": (
+                f"{parsed_date_from.strftime('%d.%m.%Y')} — "
+                f"{parsed_date_to.strftime('%d.%m.%Y')}"
+            ),
+            "records": rows,
+        }
+        pdf_buffer = generate_diagnosis_drug_pdf(report_data)
+
+    except DatabaseError as e:
+        error_message = str(e).split("CONTEXT:")[0].strip()
+        return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
+
+    filename = f"diagnosis_drugs_{date_from}_{date_to}.pdf"
     return FileResponse(
         pdf_buffer,
         as_attachment=True,

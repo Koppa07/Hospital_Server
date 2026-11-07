@@ -130,4 +130,9 @@ urlpatterns = [
         views_report.export_doctor_analytics,
         name="export-doctor-pdf",
     ),
+    path(
+        "reports/diagnoses-drugs/",
+        views_report.export_diagnosis_drugs_analytics,
+        name="export-diagnosis-drug-pdf",
+    ),
 ]

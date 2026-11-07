@@ -150,12 +150,11 @@ class PatientTests(APITestCase):
 
         self.register_url = reverse("register-patient")
         self.list_url = reverse("get-patients")
-        self.user_info_url = reverse("get_user_info")
+        self.patient_profile_url = reverse("patient-profile")
 
         self.set_auth(self.admin_token)
 
     def set_auth(self, token):
-        # Префикс изменился с "Token " на "Bearer "
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
     def test_register_patient_invalid_insurance_not_digits(self):
@@ -232,48 +231,39 @@ class PatientTests(APITestCase):
 
     def test_get_medical_history_as_owner_patient_200(self):
         self.set_auth(self.patient_token)
-        url = reverse(
-            "patient-history",
-            kwargs={"pk": self.patient.card_number},
-        )
+        url = reverse("history")
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_get_medical_history_as_other_patient_403(self):
+    def test_get_medical_history_as_other_patient_only_sees_own_history(self):
         self.set_auth(self.other_patient_token)
-        url = reverse(
-            "patient-history",
-            kwargs={"pk": self.patient.card_number},
-        )
+        url = reverse("history")
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertIn("detail", response.data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
 
     def test_get_medical_history_as_admin_200(self):
         self.set_auth(self.admin_token)
-        url = reverse(
-            "patient-history",
-            kwargs={"pk": self.patient.card_number},
-        )
+        url = reverse("history")
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_get_user_info_patient_success_200(self):
+    def test_get_patient_profile_patient_success_200(self):
         self.set_auth(self.patient_token)
-        response = self.client.get(self.user_info_url)
+        response = self.client.get(self.patient_profile_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["card_number"], self.patient.card_number)
         self.assertEqual(response.data["patient_name"], "Иванов Иван Иванович")
 
-    def test_get_user_info_non_patient_404(self):
+    def test_get_patient_profile_non_patient_forbidden(self):
         self.set_auth(self.admin_token)
-        response = self.client.get(self.user_info_url)
+        response = self.client.get(self.patient_profile_url)
 
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn("detail", response.data)
 
 
@@ -343,7 +333,7 @@ class SpecializationsTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertEqual(Specialization.objects.count(), 0)
-        self.assertIn("Специализация удалена", response.data)
+        self.assertIn("Информация о специализации удалена", response.data)
 
         response2 = self.client.delete(self.detail_url)
 
@@ -658,9 +648,9 @@ class DoctorsTests(APITestCase):
     def test_create_doctor_201(self):
         data = {
             "doctor_name": "Сергей Сергеев",
-            "spec_id": self.specialization.pk,
-            "dep_id": self.department.pk,
-            "room_id": self.room.pk,
+            "spec": self.specialization.pk,
+            "dep": self.department.pk,
+            "room": self.room.pk,
             "username": "DoctorSergey",
             "password": "pass12345",
         }

@@ -63,7 +63,7 @@ class PatientRegistrationSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(max_length=100)
     birth_date = serializers.DateField()
     address = serializers.CharField(required=False, allow_blank=True, default="")
-    insurance = serializers.CharField(max_length=16, min_length=16)
+    insurance = serializers.RegexField(regex=r"^\d{16}$")
 
     class Meta:
         model = Patient

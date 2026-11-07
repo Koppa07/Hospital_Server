@@ -19,6 +19,7 @@ class PatientListView(generics.ListAPIView):
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
 
+    search_fields = ["patient_name"]
     filterset_fields = {
         "patient_name": ["icontains"],
         "card_number": ["icontains"],
