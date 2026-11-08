@@ -8,7 +8,28 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from ..models import Doctor, ReceptionLog
-from ..reports import generate_analytics_pdf, generate_diagnosis_drug_pdf
+from ..reports import (
+    generate_analytics_pdf,
+    generate_diagnosis_drug_pdf,
+    generate_patient_age_pdf,
+    generate_appointment_status_pdf,
+    generate_doctor_load_pdf,
+)
+
+
+def parse_report_date(value):
+    try:
+        parsed_date = date.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed_date if parsed_date.isoformat() == value else None
+
+
+def fetch_report_rows(query, params):
+    with connection.cursor() as cursor:
+        cursor.execute(query, params)
+        columns = [column[0].lower() for column in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
 @api_view(["GET"])
@@ -29,6 +50,19 @@ def export_doctor_analytics(request, doctor_id):
             {
                 "detail": "Параметры start_date и end_date обязательны (формат YYYY-MM-DD)."
             },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    parsed_start_date = parse_report_date(start_date)
+    parsed_end_date = parse_report_date(end_date)
+    if not parsed_start_date or not parsed_end_date:
+        return Response(
+            {"detail": "Даты должны иметь формат YYYY-MM-DD."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if parsed_start_date > parsed_end_date:
+        return Response(
+            {"detail": "Дата начала не может быть позднее даты окончания."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -95,26 +129,15 @@ def export_diagnosis_drugs_analytics(request):
         return Response(
             {
                 "error": (
-                    "Необходимо указать начальную и конечную даты "
-                    "(формат YYYY-MM-DD)"
+                    "Необходимо указать начальную и конечную даты (формат YYYY-MM-DD)"
                 )
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    try:
-        parsed_date_from = date.fromisoformat(date_from)
-        parsed_date_to = date.fromisoformat(date_to)
-    except ValueError:
-        return Response(
-            {"error": "Даты должны быть указаны в формате YYYY-MM-DD"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    if (
-        parsed_date_from.isoformat() != date_from
-        or parsed_date_to.isoformat() != date_to
-    ):
+    parsed_date_from = parse_report_date(date_from)
+    parsed_date_to = parse_report_date(date_to)
+    if not parsed_date_from or not parsed_date_to:
         return Response(
             {"error": "Даты должны быть указаны в формате YYYY-MM-DD"},
             status=status.HTTP_400_BAD_REQUEST,
@@ -157,5 +180,131 @@ def export_diagnosis_drugs_analytics(request):
         pdf_buffer,
         as_attachment=True,
         filename=filename,
+        content_type="application/pdf",
+    )
+
+
+@api_view(["GET"])
+def export_patient_age_analytics(request):
+    report_date = request.query_params.get("as_of_date", date.today().isoformat())
+    if not parse_report_date(report_date):
+        return Response(
+            {"error": "Некорректный формат даты"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        rows = fetch_report_rows(
+            "SELECT * FROM GET_PATIENT_AGE_REPORT(%s)", [report_date]
+        )
+    except DatabaseError:
+        return Response(
+            {"error": "Не удалось сформировать отчет о возрасте пациентов."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    report_data = {"as_of_date": report_date, "rows": rows}
+
+    pdf = generate_patient_age_pdf(report_data)
+
+    return FileResponse(
+        pdf,
+        as_attachment=True,
+        filename="patient_age_report.pdf",
+        content_type="application/pdf",
+    )
+
+
+@api_view(["GET"])
+def export_appointments_status_analytics(request):
+    date_from = request.query_params.get("date_from")
+    date_to = request.query_params.get("date_to")
+
+    if not date_from or not date_to:
+        return Response(
+            {"error": "Необходимо указать date_from и date_to"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    parsed_date_from = parse_report_date(date_from)
+    parsed_date_to = parse_report_date(date_to)
+    if not parsed_date_from or not parsed_date_to:
+        return Response(
+            {"error": "Даты должны иметь формат YYYY-MM-DD"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if parsed_date_from > parsed_date_to:
+        return Response(
+            {"error": "Начальная дата позже конечной"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        rows = fetch_report_rows(
+            "SELECT * FROM GET_APPOINTMENT_STATUS_REPORT(%s, %s)",
+            [parsed_date_from, parsed_date_to],
+        )
+    except DatabaseError:
+        return Response(
+            {"error": "Не удалось сформировать отчет о статусах записей."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    report_data = {"date_from": date_from, "date_to": date_to, "rows": rows}
+
+    pdf = generate_appointment_status_pdf(report_data)
+
+    return FileResponse(
+        pdf,
+        as_attachment=True,
+        filename="appointment_status_report.pdf",
+        content_type="application/pdf",
+    )
+
+
+@api_view(["GET"])
+def export_doctor_load_analytics(request):
+    date_from = request.query_params.get("date_from")
+    date_to = request.query_params.get("date_to")
+
+    if not date_from or not date_to:
+        return Response(
+            {"error": "Необходимо указать date_from и date_to"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    parsed_date_from = parse_report_date(date_from)
+    parsed_date_to = parse_report_date(date_to)
+    if not parsed_date_from or not parsed_date_to:
+        return Response(
+            {"error": "Даты должны иметь формат YYYY-MM-DD"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if parsed_date_from > parsed_date_to:
+        return Response(
+            {"error": "Начальная дата позже конечной"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        rows = fetch_report_rows(
+            "SELECT * FROM GET_DOCTOR_LOAD_REPORT(%s, %s)",
+            [parsed_date_from, parsed_date_to],
+        )
+    except DatabaseError:
+        return Response(
+            {"error": "Не удалось сформировать отчет о загрузке врачей."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    report_data = {"date_from": date_from, "date_to": date_to, "rows": rows}
+
+    pdf = generate_doctor_load_pdf(report_data)
+
+    return FileResponse(
+        pdf,
+        as_attachment=True,
+        filename="doctor_load_report.pdf",
         content_type="application/pdf",
     )

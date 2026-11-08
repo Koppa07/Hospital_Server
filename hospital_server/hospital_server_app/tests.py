@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.test import SimpleTestCase
 from django.urls import reverse
@@ -8,8 +8,16 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import *
+from .reports import (
+    generate_analytics_pdf,
+    generate_appointment_status_pdf,
+    generate_diagnosis_drug_pdf,
+    generate_doctor_load_pdf,
+    generate_patient_age_pdf,
+)
 from .serializers.action_serializers import CompleteReceptionSerializer
 from .serializers.info_serializers import PrescriptionDetailSerializer
+from .views.views_report import parse_report_date
 
 
 class SignupTests(APITestCase):
@@ -898,3 +906,109 @@ class AvailableDateTests(APITestCase):
         response = self.client.get(self.available_dates_url)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ReportPdfTests(SimpleTestCase):
+    def assert_valid_pdf(self, pdf):
+        self.assertTrue(pdf.getvalue().startswith(b"%PDF-"))
+
+    def test_report_routes_are_registered(self):
+        routes = {
+            "export-doctor-pdf": {"doctor_id": 1},
+            "export-diagnosis-drug-pdf": {},
+            "export-patient-age-pdf": {},
+            "export-appointment-status-pdf": {},
+            "export-doctor-load-pdf": {},
+        }
+        for route_name, kwargs in routes.items():
+            with self.subTest(route=route_name):
+                self.assertIn("/reports/", reverse(route_name, kwargs=kwargs))
+
+    def test_report_date_requires_iso_format(self):
+        self.assertEqual(parse_report_date("2026-01-31").isoformat(), "2026-01-31")
+        for value in ("2026-1-31", "20260131", "not-a-date", None):
+            with self.subTest(value=value):
+                self.assertIsNone(parse_report_date(value))
+
+    def test_analytics_pdf_escapes_dynamic_text(self):
+        pdf = generate_analytics_pdf(
+            {
+                "doctor_name": "A < B & C",
+                "period": "2026-01-01 - 2026-01-31",
+                "total_appointments": 2,
+                "completed_count": 1,
+                "cancelled_count": 1,
+                "top_diseases": [{"code": "A00", "title": "Disease <one>", "count": 1}],
+            }
+        )
+        self.assert_valid_pdf(pdf)
+
+    def test_diagnosis_drug_pdf_with_empty_and_populated_records(self):
+        record = {
+            "APPOINTMENT_DATE": datetime(2026, 1, 2, 10, 30),
+            "PATIENT_NAME": "Patient <one>",
+            "DOCTOR_NAME": "Doctor & Doctor",
+            "DISEASE_CODE": "A00",
+            "DISEASE_TITLE": "Disease",
+            "DRUG_TITLE": "Drug",
+            "DRUG_TYPE": "Tablet",
+            "DOSAGE": "1 daily",
+            "RECOMMENDATIONS": "Take <with food>",
+        }
+        for records in ([], [record]):
+            with self.subTest(records=bool(records)):
+                pdf = generate_diagnosis_drug_pdf(
+                    {"period": "01.01.2026 — 31.01.2026", "records": records}
+                )
+                self.assert_valid_pdf(pdf)
+
+    def test_patient_age_pdf(self):
+        pdf = generate_patient_age_pdf(
+            {
+                "as_of_date": "2026-01-31",
+                "rows": [
+                    {"age_group": "18–30", "patient_count": 3},
+                    {"age_group": "31–45", "patient_count": 2},
+                ],
+            }
+        )
+        self.assert_valid_pdf(pdf)
+
+    def test_appointment_status_pdf(self):
+        pdf = generate_appointment_status_pdf(
+            {
+                "date_from": "2026-01-01",
+                "date_to": "2026-01-31",
+                "rows": [
+                    {
+                        "appointment_status": "COMPLETED",
+                        "appointment_count": 2,
+                        "patient_count": 2,
+                    }
+                ],
+            }
+        )
+        self.assert_valid_pdf(pdf)
+
+    def test_doctor_load_pdf_with_empty_and_populated_rows(self):
+        row = {
+            "doctor_name": "Doctor <one>",
+            "spec_title": "Specialization",
+            "dep_title": "Department",
+            "work_minutes": 120,
+            "work_days": 1,
+            "appointment_count": 2,
+            "completed_count": 1,
+            "cancelled_count": 0,
+            "no_show_count": 1,
+        }
+        for rows in ([], [row]):
+            with self.subTest(rows=bool(rows)):
+                pdf = generate_doctor_load_pdf(
+                    {
+                        "date_from": "2026-01-01",
+                        "date_to": "2026-01-31",
+                        "rows": rows,
+                    }
+                )
+                self.assert_valid_pdf(pdf)

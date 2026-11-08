@@ -135,4 +135,19 @@ urlpatterns = [
         views_report.export_diagnosis_drugs_analytics,
         name="export-diagnosis-drug-pdf",
     ),
+    path(
+        "reports/patient-age/",
+        views_report.export_patient_age_analytics,
+        name="export-patient-age-pdf",
+    ),
+    path(
+        "reports/appointment-status/",
+        views_report.export_appointments_status_analytics,
+        name="export-appointment-status-pdf",
+    ),
+    path(
+        "reports/doctor-load/",
+        views_report.export_doctor_load_analytics,
+        name="export-doctor-load-pdf",
+    ),
 ]
